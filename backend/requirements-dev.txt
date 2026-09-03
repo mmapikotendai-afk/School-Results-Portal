@@ -1,0 +1,5 @@
+-r requirements.txt
+
+# --- Development / testing only ---
+httpx==0.28.1        # required by fastapi.testclient
+pytest==8.3.4

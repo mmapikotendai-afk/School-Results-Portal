@@ -1,0 +1,134 @@
+@import 'tailwindcss';
+
+/* ==========================================================================
+   Design system
+   Single source of truth for colour, type and elevation. Tailwind v4 turns
+   every token below into a utility (e.g. --color-brand-600 -> bg-brand-600).
+   ========================================================================== */
+@theme {
+  /* Typeface: Inter for the interface, Lora for school-branded headings
+     (the masthead and report cards). */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-serif: 'Lora', ui-serif, Georgia, 'Times New Roman', serif;
+
+  /* Brand - a deep academic navy, used for chrome, primary actions and print. */
+  --color-brand-50: #eef4ff;
+  --color-brand-100: #dae5ff;
+  --color-brand-200: #bdd1ff;
+  --color-brand-300: #90b3ff;
+  --color-brand-400: #5c88fb;
+  --color-brand-500: #375ff5;
+  --color-brand-600: #213fe8;
+  --color-brand-700: #1a30d4;
+  --color-brand-800: #1c2aac;
+  --color-brand-900: #142058;
+  --color-brand-950: #0d1538;
+
+  /* Accent - a restrained scholastic gold for crests, seals and highlights. */
+  --color-accent-50: #fffaeb;
+  --color-accent-100: #fef0c7;
+  --color-accent-200: #fedf89;
+  --color-accent-300: #fec84b;
+  --color-accent-400: #fdb022;
+  --color-accent-500: #f79009;
+  --color-accent-600: #dc6803;
+  --color-accent-700: #b54708;
+  --color-accent-800: #93370d;
+  --color-accent-900: #7a2e0e;
+
+  /* Semantic - result states: published, pending, overdue, rejected. */
+  --color-success-50: #ecfdf3;
+  --color-success-100: #d1fadf;
+  --color-success-500: #12b76a;
+  --color-success-600: #039855;
+  --color-success-700: #027a48;
+
+  --color-warning-50: #fffaeb;
+  --color-warning-100: #fef0c7;
+  --color-warning-500: #f79009;
+  --color-warning-600: #dc6803;
+  --color-warning-700: #b54708;
+
+  --color-danger-50: #fef3f2;
+  --color-danger-100: #fee4e2;
+  --color-danger-500: #f04438;
+  --color-danger-600: #d92d20;
+  --color-danger-700: #b42318;
+
+  /* Neutrals */
+  --color-ink-50: #f8fafc;
+  --color-ink-100: #f1f5f9;
+  --color-ink-200: #e2e8f0;
+  --color-ink-300: #cbd5e1;
+  --color-ink-400: #94a3b8;
+  --color-ink-500: #64748b;
+  --color-ink-600: #475569;
+  --color-ink-700: #334155;
+  --color-ink-800: #1e293b;
+  --color-ink-900: #0f172a;
+
+  /* Elevation */
+  --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.06);
+  --shadow-raised: 0 4px 6px -1px rgb(15 23 42 / 0.07), 0 2px 4px -2px rgb(15 23 42 / 0.05);
+  --shadow-overlay: 0 20px 25px -5px rgb(15 23 42 / 0.12), 0 8px 10px -6px rgb(15 23 42 / 0.08);
+
+  /* Motion */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-ink-50 text-ink-800 font-sans antialiased;
+  }
+
+  /* A single, consistent focus ring across every interactive element. */
+  :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+    @apply outline-brand-500 outline-2 outline-offset-2;
+  }
+
+  h1, h2, h3, h4 {
+    @apply text-ink-900 font-semibold tracking-tight;
+  }
+}
+
+@layer components {
+  /* Shared surface for panels, tables and cards. */
+  .surface {
+    @apply bg-white border-ink-200 shadow-card rounded-xl border;
+  }
+
+  /* Vertical navigation item used by the portal sidebar. */
+  .nav-item {
+    @apply flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-150;
+  }
+
+  /* Scrolls, but without drawing a scrollbar.
+     The administrator's sidebar carries twelve destinations and four section
+     headings, so on a shorter laptop screen it overflows and a scrollbar track
+     appears hard against the page content - a grey stripe down the middle of
+     the layout. Hiding the track keeps the chrome clean while the region stays
+     scrollable by wheel, trackpad, touch and keyboard, so nothing becomes
+     unreachable on a short screen. */
+  .scrollbar-none {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* legacy Edge */
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none; /* Chrome, Safari */
+  }
+}
+
+/* Respect users who prefer reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,17 @@
+# Normalise line endings.
+#
+# The portal is developed on Windows but the repository is shared, so text is
+# stored with LF in git and checked out however the local platform prefers.
+# Without this, a clone on Linux or macOS shows every file as modified.
+* text=auto eol=lf
+
+# Binary assets git must not touch.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
