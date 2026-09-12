@@ -316,6 +316,15 @@ def send_account_credentials(
         text_body=text_body,
     )
 
+    # The password has already been stored either way, so the failure text
+    # has to say which act it is reporting: creating an account and reissuing
+    # one leave the administrator with different work to do.
+    failure_detail = (
+        "The password was reissued, but the email could not be delivered."
+        if reissued
+        else "The account was created, but the email could not be delivered."
+    )
+
     try:
         get_backend().send(message)
     except EmailError as exc:
@@ -323,23 +332,25 @@ def send_account_credentials(
         logger.warning("Credential email to %s failed: %s", user.email, exc)
         return DeliveryResult(
             status=EmailDeliveryStatus.FAILED,
-            detail=(
-                "The account was created, but the email could not be delivered."
-            ),
+            detail=failure_detail,
             error=str(exc)[:MAX_ERROR_LENGTH],
         )
     except Exception as exc:  # noqa: BLE001 - delivery must never break creation
         logger.exception("Unexpected error sending credential email to %s", user.email)
         return DeliveryResult(
             status=EmailDeliveryStatus.FAILED,
-            detail="The account was created, but the email could not be delivered.",
+            detail=failure_detail,
             error=f"{type(exc).__name__}: {exc}"[:MAX_ERROR_LENGTH],
         )
 
     logger.info("Credential email accepted for delivery to %s", user.email)
     return DeliveryResult(
         status=EmailDeliveryStatus.SENT,
-        detail=f"Login credentials sent to {user.email}.",
+        detail=(
+            f"A new password was sent to {user.email}."
+            if reissued
+            else f"Login credentials sent to {user.email}."
+        ),
     )
 
 

@@ -1,5 +1,6 @@
 import { Link, Outlet } from 'react-router-dom'
 
+import ApiStatusBadge from '@/components/common/ApiStatusBadge'
 import Logo from '@/components/common/Logo'
 import { SCHOOL } from '@/utils/constants'
 
@@ -11,7 +12,7 @@ import { SCHOOL } from '@/utils/constants'
  * it already carries the school motto, and setting more type next to it only
  * competes with the heading below.
  *
- * The form now sits inside a ruled plate rather than floating on the page.
+ * The form sits inside a ruled plate rather than floating on the page.
  * Signing in is the moment the portal states who issued it, so the frame,
  * the crest and the motto do that work together.
  */
@@ -37,6 +38,15 @@ export function AuthLayout() {
           )}
         </div>
       </main>
+
+      {/* DEVELOPMENT ONLY - delete this block before deployment.
+          Proof that the browser reached FastAPI and that MySQL answered behind
+          it. Parked in the corner so it reports without taking part in the
+          page: sign-in is the school introducing itself, and a build number
+          does not belong in that. */}
+      <div className="pointer-events-none fixed bottom-3 left-3 z-40">
+        <ApiStatusBadge className="pointer-events-auto scale-90 opacity-75 transition-opacity hover:opacity-100" />
+      </div>
     </div>
   )
 }

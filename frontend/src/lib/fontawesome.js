@@ -21,8 +21,10 @@ import {
   faCircleCheck,
   faCircleExclamation,
   faCircleInfo,
+  faClock,
   faCloudArrowUp,
   faDownload,
+  faEnvelope,
   faEye,
   faEyeSlash,
   faFileCsv,
@@ -60,6 +62,7 @@ import {
   faFilter,
   faFolderOpen,
   faInbox,
+  faKey,
   faListCheck,
   faPrint,
   faSliders,
@@ -68,7 +71,10 @@ import {
   faWifi,
 } from '@fortawesome/free-solid-svg-icons'
 
-import { faClock, faEnvelope } from '@fortawesome/free-regular-svg-icons'
+// Clock and envelope are taken from the solid set deliberately. Every call
+// site writes them in the string form - icon="clock" - which Font Awesome
+// resolves against the default `fas` prefix. Registering only the regular
+// (`far`) variants left all 21 of those usages silently rendering nothing.
 
 config.autoAddCss = false
 
@@ -83,8 +89,10 @@ library.add(
   faCircleCheck,
   faCircleExclamation,
   faCircleInfo,
+  faClock,
   faCloudArrowUp,
   faDownload,
+  faEnvelope,
   faEye,
   faEyeSlash,
   faFileCsv,
@@ -122,12 +130,11 @@ library.add(
   faFilter,
   faFolderOpen,
   faInbox,
+  faKey,
   faListCheck,
   faPrint,
   faSliders,
   faTrophy,
   faUserPen,
   faWifi,
-  faClock,
-  faEnvelope,
 )

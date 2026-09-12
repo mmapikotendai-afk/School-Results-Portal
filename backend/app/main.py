@@ -16,7 +16,7 @@ from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from app import __version__
 from app.config import settings
-from app.database import check_database_connection
+from app.database import check_database_connection, engine
 from app.routers import api_router
 
 logging.basicConfig(
@@ -49,7 +49,11 @@ async def lifespan(app: FastAPI):
 
     connected, error = check_database_connection()
     if connected:
-        logger.info("MySQL connection established (%s).", settings.MYSQL_DATABASE)
+        # Report the database actually connected to, not MYSQL_DATABASE.
+        # DATABASE_URL overrides the assembled URL entirely, so the two
+        # disagree the moment it is set - and a startup line naming the
+        # wrong database sends anyone debugging to the wrong data.
+        logger.info("MySQL connection established (%s).", engine.url.database)
     else:
         logger.warning("MySQL unavailable - the API will still serve /health. %s", error)
 
