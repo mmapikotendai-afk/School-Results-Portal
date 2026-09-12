@@ -4,6 +4,7 @@ import ProtectedRoute from '@/components/routing/ProtectedRoute'
 import PublicOnlyRoute from '@/components/routing/PublicOnlyRoute'
 import AuthLayout from '@/layouts/AuthLayout'
 import PortalLayout from '@/layouts/PortalLayout'
+import ForgotPasswordPage from '@/pages/ForgotPasswordPage'
 import LandingPage from '@/pages/LandingPage'
 import LoginPage from '@/pages/LoginPage'
 import NotFoundPage from '@/pages/NotFoundPage'
@@ -13,6 +14,7 @@ import AdminDashboard from '@/pages/admin/AdminDashboard'
 import ClassesPage from '@/pages/admin/ClassesPage'
 import ExaminationsPage from '@/pages/admin/ExaminationsPage'
 import ReportsPage from '@/pages/admin/ReportsPage'
+import ResetRequestsPage from '@/pages/admin/ResetRequestsPage'
 import ResultSubmissionsPage from '@/pages/admin/ResultSubmissionsPage'
 import ResultsPage from '@/pages/admin/ResultsPage'
 import SchoolPage from '@/pages/admin/SchoolPage'
@@ -55,6 +57,7 @@ export function App() {
       <Route element={<PublicOnlyRoute />}>
         <Route element={<AuthLayout />}>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         </Route>
       </Route>
 
@@ -64,6 +67,7 @@ export function App() {
           <Route path="dashboard" element={<AdminDashboard />} />
           <Route path="students" element={<StudentsPage />} />
           <Route path="teachers" element={<TeachersPage />} />
+          <Route path="reset-requests" element={<ResetRequestsPage />} />
           <Route path="subjects" element={<SubjectsPage />} />
           <Route path="classes" element={<ClassesPage />} />
           <Route path="academic-years" element={<AcademicYearsPage />} />

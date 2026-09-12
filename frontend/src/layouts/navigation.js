@@ -20,6 +20,7 @@ export const NAVIGATION = {
       items: [
         { to: '/admin/students', label: 'Students', icon: 'user-graduate' },
         { to: '/admin/teachers', label: 'Teachers', icon: 'users' },
+        { to: '/admin/reset-requests', label: 'Password Resets', icon: 'lock' },
       ],
     },
     {

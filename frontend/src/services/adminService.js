@@ -137,3 +137,17 @@ export const schoolService = {
   },
   deleteLogo: () => unwrap(apiClient.delete('/admin/school/logo')),
 }
+
+/**
+ * The password reset queue.
+ *
+ * Approving calls the same credential reissue the Students and Teachers pages
+ * use, so a reset from the queue behaves exactly like a manual resend.
+ */
+export const resetRequestService = {
+  list: (status) => unwrap(apiClient.get('/admin/reset-requests', { params: { status } })),
+  pendingCount: () => unwrap(apiClient.get('/admin/reset-requests/pending-count')),
+  approve: (id) => unwrap(apiClient.post(`/admin/reset-requests/${id}/approve`)),
+  decline: (id, note) =>
+    unwrap(apiClient.post(`/admin/reset-requests/${id}/decline`, { note: note || null })),
+}

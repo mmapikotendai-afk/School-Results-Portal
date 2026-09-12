@@ -113,3 +113,19 @@ class EmailDeliveryStatus(str, enum.Enum):
     SENT = "SENT"
     FAILED = "FAILED"
     SKIPPED = "SKIPPED"
+
+
+class ResetRequestStatus(str, enum.Enum):
+    """Where a password reset request stands.
+
+    PENDING    the account holder has asked; the office has not acted yet
+    APPROVED   an administrator reissued the credentials
+    DECLINED   an administrator refused it, with a reason on the row
+
+    A request is never actioned by the system itself. Somebody in the office
+    decides, which is the whole point of routing resets through them.
+    """
+
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    DECLINED = "DECLINED"

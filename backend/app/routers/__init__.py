@@ -7,6 +7,7 @@ from app.routers import (
     admin_academic,
     admin_accounts,
     admin_catalog,
+    admin_reset_requests,
     admin_results,
     admin_school,
     admin_submissions,
@@ -32,6 +33,7 @@ api_router.include_router(admin_academic.router)
 api_router.include_router(admin_results.router)
 api_router.include_router(admin_school.router)
 api_router.include_router(admin_submissions.router)
+api_router.include_router(admin_reset_requests.router)
 
 # Teacher portal. Every subject-scoped route checks the assignment first.
 api_router.include_router(teacher_portal.router)

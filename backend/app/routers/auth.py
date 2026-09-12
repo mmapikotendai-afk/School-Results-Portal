@@ -27,11 +27,13 @@ from app.schemas.auth import (
     LoginRequest,
     LoginResponse,
     PasswordPolicy,
+    PasswordResetRequestCreate,
 )
 from app.schemas.common import Message
 from app.schemas.user import UserProfile
 from app.services.auth_service import AuthService
-from app.utils.rate_limit import login_buckets
+from app.services.password_reset_service import ACKNOWLEDGEMENT, PasswordResetService
+from app.utils.rate_limit import login_buckets, reset_request_buckets
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -149,3 +151,38 @@ def change_password(
 def password_policy() -> PasswordPolicy:
     """Let the UI show exactly the rules the API will enforce."""
     return PasswordPolicy()
+
+
+@router.post(
+    "/password-reset-request",
+    response_model=Message,
+    summary="Ask the school office to reissue your password",
+)
+def request_password_reset(
+    payload: PasswordResetRequestCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> Message:
+    """Record that somebody cannot sign in and needs new credentials.
+
+    This does not reset anything. It puts a request in front of the school
+    office, who reissue the password themselves - the same act they can
+    already perform from the Students and Teachers pages. Accounts here are
+    issued rather than registered, and a learner may have no mailbox of their
+    own, so a self-service reset link would assume something that is not true
+    of this school.
+
+    The reply is the same sentence whatever happened: account found, account
+    unknown, account deactivated, or a request already open. Otherwise the
+    sign-in screen would become a way to discover who holds an account.
+    """
+    client_ip = request.client.host if request.client else "unknown"
+
+    for limiter, key in reset_request_buckets(payload.identifier, client_ip):
+        allowed, retry_after = limiter.check(key)
+        if not allowed:
+            raise too_many_attempts_error(retry_after)
+        limiter.record_failure(key)
+
+    PasswordResetService(db).raise_request(payload.identifier, payload.message)
+    return Message(detail=ACKNOWLEDGEMENT)

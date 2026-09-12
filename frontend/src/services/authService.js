@@ -59,6 +59,21 @@ export const authService = {
     const { data } = await apiClient.get('/auth/password-policy')
     return data
   },
+
+  /**
+   * POST /auth/password-reset-request - ask the office to reissue a password.
+   *
+   * Resolves the same way whether or not the account exists. That is the
+   * server's doing, not an omission here: telling the caller would turn the
+   * sign-in screen into a way to find out who holds an account.
+   */
+  async requestPasswordReset(identifier, message) {
+    const { data } = await apiClient.post('/auth/password-reset-request', {
+      identifier,
+      message: message || null,
+    })
+    return data
+  },
 }
 
 export default authService

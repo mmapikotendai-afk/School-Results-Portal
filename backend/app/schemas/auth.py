@@ -4,10 +4,12 @@ There is deliberately no registration schema: accounts are provisioned by
 administrators through the admin router, never by the public.
 """
 
+from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.models.enums import ResetRequestStatus, UserRole
 from app.schemas.user import UserProfile
 from app.utils.security import (
     MAX_PASSWORD_BYTES,
@@ -86,3 +88,54 @@ class SessionInfo(BaseModel):
     password_changed_at: Optional[str] = None
     last_login_at: Optional[str] = None
     must_change_password: bool = False
+
+
+class PasswordResetRequestCreate(BaseModel):
+    """What somebody locked out of their account sends from the sign-in screen.
+
+    The identifier is whatever they use to sign in - a username or an email
+    address. It is not validated as an email, because most learners sign in
+    with a derived username rather than a mailbox of their own.
+    """
+
+    identifier: str = Field(min_length=1, max_length=255)
+    message: Optional[str] = Field(default=None, max_length=500)
+
+    @field_validator("identifier")
+    @classmethod
+    def _trim(cls, value: str) -> str:
+        trimmed = (value or "").strip()
+        if not trimmed:
+            raise ValueError("Enter the username or email address you sign in with.")
+        return trimmed
+
+
+class PasswordResetRequestRead(BaseModel):
+    """One row of the office's reset queue."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    status: ResetRequestStatus
+    submitted_identifier: str
+    message: Optional[str] = None
+    created_at: datetime
+
+    # Who is asking. Flattened from the account so the queue is readable
+    # without the client having to fetch each user separately.
+    user_id: int
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    username: Optional[str] = None
+    role: Optional[UserRole] = None
+    is_active: bool = True
+
+    resolved_at: Optional[datetime] = None
+    resolved_by: Optional[str] = None
+    resolution_note: Optional[str] = None
+
+
+class PasswordResetDecision(BaseModel):
+    """An administrator's reason for declining a request."""
+
+    note: Optional[str] = Field(default=None, max_length=500)

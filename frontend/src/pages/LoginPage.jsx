@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 
-import ApiStatusBadge from '@/components/common/ApiStatusBadge'
 import { Alert, Button, Input } from '@/components/ui'
 import { SIGN_OUT_REASON } from '@/context/authContext'
 import useAuth from '@/hooks/useAuth'
@@ -35,8 +34,9 @@ const REASON_NOTICE = {
 /**
  * Sign-in screen.
  *
- * Accounts are issued by the school office, so there is no registration link
- * and no self-service password reset - only a route back to the landing page.
+ * Accounts are issued by the school office, so there is no registration link.
+ * "Forgot your password?" does not reset anything either: it asks the office to
+ * issue a new one, which is how every credential here is handed out.
  */
 export function LoginPage() {
   useDocumentTitle('Sign in')
@@ -138,19 +138,31 @@ export function LoginPage() {
           required
         />
 
-        <Input
-          label="Password"
-          name="password"
-          type="password"
-          icon="lock"
-          autoComplete="current-password"
-          placeholder="Enter your password"
-          value={form.password}
-          onChange={handleChange}
-          error={fieldErrors.password}
-          disabled={submitting}
-          required
-        />
+        <div>
+          <Input
+            label="Password"
+            name="password"
+            type="password"
+            icon="lock"
+            autoComplete="current-password"
+            placeholder="Enter your password"
+            value={form.password}
+            onChange={handleChange}
+            error={fieldErrors.password}
+            disabled={submitting}
+            required
+          />
+          {/* There is no self-service reset: this asks the office to issue a
+              new password, which is how every credential here is handed out. */}
+          <div className="mt-2 flex justify-end">
+            <Link
+              to="/forgot-password"
+              className="text-ink-500 hover:text-brand-800 text-sm font-medium underline underline-offset-2"
+            >
+              Forgot your password?
+            </Link>
+          </div>
+        </div>
 
         <Button
           type="submit"
@@ -164,13 +176,6 @@ export function LoginPage() {
         </Button>
       </form>
 
-      <div className="border-ink-200 mt-8 border-t pt-6">
-        <p className="text-ink-500 text-sm">
-          Accounts are created by the school administrator. If you cannot sign in, or you
-          have forgotten your password, contact the school office.
-        </p>
-        <ApiStatusBadge className="mt-4" />
-      </div>
     </div>
   )
 }

@@ -99,3 +99,37 @@ def login_buckets(identifier: str, client_ip: str):
         (identifier_limiter, f"id:{(identifier or '').strip().lower()}"),
         (ip_limiter, f"ip:{client_ip or 'unknown'}"),
     )
+
+
+# --- Password reset requests -------------------------------------------------
+#
+# The other endpoint a stranger may call without a token. It writes a row, so
+# it is throttled harder than sign-in: the cost of abuse here is a queue the
+# office has to wade through, not a guessed password.
+RESET_WINDOW_SECONDS = 60 * 60
+
+# Per identifier. Asking three times in an hour is already more than anybody
+# needs; the office cannot act faster than that anyway.
+RESET_MAX_PER_IDENTIFIER = 3
+
+# Per address, looser for the same reason sign-in is: a whole staff room can
+# share one public address.
+RESET_MAX_PER_IP = 15
+
+reset_identifier_limiter = SlidingWindowLimiter(
+    RESET_MAX_PER_IDENTIFIER, RESET_WINDOW_SECONDS
+)
+reset_ip_limiter = SlidingWindowLimiter(RESET_MAX_PER_IP, RESET_WINDOW_SECONDS)
+
+
+def reset_request_buckets(identifier: str, client_ip: str):
+    """The two counters a password reset request is measured against.
+
+    Unlike sign-in, every attempt counts - not just failures. There is no
+    "success" to reset the counter on, because the endpoint deliberately
+    reports the same outcome whether or not the account exists.
+    """
+    return (
+        (reset_identifier_limiter, f"reset-id:{(identifier or '').strip().lower()}"),
+        (reset_ip_limiter, f"reset-ip:{client_ip or 'unknown'}"),
+    )
