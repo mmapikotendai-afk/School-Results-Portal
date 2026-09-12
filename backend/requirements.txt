@@ -2,10 +2,15 @@
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
 
-# --- Database (MySQL + SQLAlchemy ORM) ---
+# --- Database (SQLAlchemy ORM) ---
+# Both drivers are installed on purpose. Local development assembles a MySQL
+# URL from the MYSQL_* parts; every hosted deployment sets DATABASE_URL and is
+# on Postgres. The models are plain portable SQLAlchemy, so the same code runs
+# on either - see _normalise_database_url in app/config.py.
 SQLAlchemy==2.0.36
 PyMySQL==1.1.1
 cryptography==44.0.0          # required by PyMySQL for MySQL 8 caching_sha2_password
+psycopg[binary]==3.2.3        # Postgres, for Neon / Heroku / any hosted database
 
 # --- Configuration / validation ---
 pydantic==2.10.4

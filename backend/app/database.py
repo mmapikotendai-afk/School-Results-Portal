@@ -1,4 +1,9 @@
-"""SQLAlchemy engine, session factory and declarative base for MySQL."""
+"""SQLAlchemy engine, session factory and declarative base.
+
+The engine is driven entirely by settings.sqlalchemy_database_uri, so the
+same code runs on the local MySQL and on the hosted Postgres a deployment
+hands over through DATABASE_URL.
+"""
 
 import logging
 from typing import Generator
@@ -12,10 +17,19 @@ logger = logging.getLogger(__name__)
 
 engine = create_engine(
     settings.sqlalchemy_database_uri,
-    pool_pre_ping=True,      # transparently recycles connections MySQL has dropped
-    pool_recycle=3600,       # MySQL closes idle connections after wait_timeout
-    pool_size=10,
-    max_overflow=20,
+    # Both databases drop connections that have sat idle, and a pooled
+    # connection that died while parked is indistinguishable from a live one
+    # until it is used. Checking on checkout costs a round trip and saves an
+    # error the user would have seen.
+    pool_pre_ping=True,
+    pool_recycle=settings.DB_POOL_RECYCLE,
+    # Deliberately small. A hosted Postgres on a free or entry tier allows far
+    # fewer connections than a local MySQL, and every worker keeps its own
+    # pool - so the ceiling is pool_size + max_overflow, multiplied by workers.
+    # Exhausting the provider's limit takes the whole application down, where
+    # a queue here only makes a request wait.
+    pool_size=settings.DB_POOL_SIZE,
+    max_overflow=settings.DB_MAX_OVERFLOW,
     echo=settings.DEBUG and settings.ENVIRONMENT == "development",
     future=True,
 )

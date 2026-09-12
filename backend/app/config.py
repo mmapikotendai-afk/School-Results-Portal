@@ -55,6 +55,13 @@ class Settings(BaseSettings):
     # Full override. When empty, the URL is assembled from the parts above.
     DATABASE_URL: str = ""
 
+    # Connection pool. The defaults suit a small hosted database: a free-tier
+    # Postgres may allow only a handful of connections, and each web worker
+    # keeps a pool of its own.
+    DB_POOL_SIZE: int = 5
+    DB_MAX_OVERFLOW: int = 5
+    DB_POOL_RECYCLE: int = 900
+
     # --- Security ---
     SECRET_KEY: str = ""
     JWT_ALGORITHM: str = "HS256"
@@ -276,9 +283,14 @@ class Settings(BaseSettings):
 
     @property
     def sqlalchemy_database_uri(self) -> str:
-        """The SQLAlchemy connection URL for MySQL."""
+        """The SQLAlchemy connection URL.
+
+        DATABASE_URL wins when set, which is how every hosted platform hands a
+        database over. Without it the MYSQL_* parts are assembled, which is the
+        local development path.
+        """
         if self.DATABASE_URL:
-            return self.DATABASE_URL
+            return _normalise_database_url(self.DATABASE_URL)
         from urllib.parse import quote_plus
 
         user = quote_plus(self.MYSQL_USER)
@@ -292,6 +304,28 @@ class Settings(BaseSettings):
     def is_configured(self) -> bool:
         """True when the minimum required secrets have been supplied."""
         return bool(self.SECRET_KEY) and bool(self.MYSQL_USER)
+
+
+
+def _normalise_database_url(url: str) -> str:
+    """Make a hosted provider's connection string usable by SQLAlchemy.
+
+    Providers hand out URLs written for libpq, not for SQLAlchemy, and two of
+    those differences stop the application booting rather than degrading:
+
+      postgres://      Some providers still issue this. SQLAlchemy dropped the
+                       alias and raises rather than guessing.
+      postgresql://    Valid, but selects the default driver. We install
+                       psycopg 3, which must be named explicitly.
+
+    Neon and Supabase also append ?sslmode=require, which psycopg understands,
+    so query parameters are left exactly as given.
+    """
+    url = (url or "").strip()
+    for prefix in ("postgres://", "postgresql://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg://" + url[len(prefix) :]
+    return url
 
 
 @lru_cache

@@ -1,0 +1,80 @@
+# Render blueprint for the FastAPI backend.
+#
+# The frontend is not here: it is a static build on Vercel that calls this
+# service directly. Two settings have to agree with it or the browser refuses
+# every request before it leaves - CORS_ORIGINS below, and VITE_API_BASE_URL
+# on the Vercel side.
+
+services:
+  - type: web
+    name: school-results-portal-api
+    runtime: python
+    plan: free
+    region: frankfurt          # nearest of Render's regions to Zimbabwe
+    rootDir: backend
+
+    # init_db creates any missing tables and, on an empty database, the first
+    # administrator. It is idempotent - create_all never alters a table that
+    # already exists - so running it on every deploy is safe, and a failure
+    # here fails the build rather than leaving a half-migrated service live.
+    buildCommand: pip install -r requirements.txt && python -m scripts.init_db
+
+    # --proxy-headers so the application sees the real client address through
+    # Render's router rather than the router's own, which the rate limiter
+    # depends on to tell callers apart.
+    startCommand: >-
+      uvicorn app.main:app --host 0.0.0.0 --port $PORT
+      --proxy-headers --forwarded-allow-ips='*'
+
+    healthCheckPath: /api/v1/health
+
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.13.5"
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: "false"
+
+      # Everything below is set in the Render dashboard, never in this file.
+      # sync: false keeps the blueprint from overwriting them on each deploy.
+      - key: DATABASE_URL       # the Neon connection string
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: CORS_ORIGINS       # the Vercel site, e.g. https://portal.vercel.app
+        sync: false
+      - key: FRONTEND_URL       # same URL; used for sign-in links in emails
+        sync: false
+      - key: EMAIL_ENABLED
+        sync: false
+      - key: EMAIL_PROVIDER
+        sync: false
+      - key: EMAIL_HOST
+        sync: false
+      - key: EMAIL_PORT
+        sync: false
+      - key: EMAIL_USE_TLS
+        sync: false
+      - key: EMAIL_USE_SSL
+        sync: false
+      - key: EMAIL_USERNAME
+        sync: false
+      - key: EMAIL_PASSWORD
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: EMAIL_FROM_NAME
+        sync: false
+      - key: SCHOOL_NAME
+        sync: false
+      - key: SCHOOL_MOTTO
+        sync: false
+      - key: STUDENT_EMAIL_DOMAIN
+        sync: false
+      - key: ADMIN_EMAIL        # first admin; remove after the first deploy
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_NAME
+        sync: false
