@@ -22,10 +22,13 @@ function deadlineTone(card) {
 /**
  * One assigned subject: what is due, when, and where it stands.
  *
- * This is the teacher's whole job in one card, so the two actions that matter -
- * get the template, put the marks in - are the prominent ones.
+ * This is the teacher's whole job in one card, so the actions that matter -
+ * get the template, put the marks in - are the prominent ones. Both ways of
+ * putting marks in are offered here: the CSV import for a whole class at once,
+ * and the mark sheet for typing them. Routing the import through the mark
+ * sheet made the commonest task the longer one.
  */
-export function SubjectCard({ card, onDownloadError }) {
+export function SubjectCard({ card, onDownloadError, onUpload }) {
   const [busy, setBusy] = useState(null)
 
   const isDone = card.status === 'SUBMITTED' || card.status === 'LATE'
@@ -147,6 +150,24 @@ export function SubjectCard({ card, onDownloadError }) {
       </div>
 
       <div className="border-ink-200 bg-ink-50 flex flex-wrap gap-2 border-t px-5 py-3">
+        {/* The import leads: marking a class from a spreadsheet is the common
+            case, and typing marks one by one is the fallback. */}
+        {card.can_upload && (
+          <Button size="sm" icon="cloud-arrow-up" onClick={() => onUpload?.(card)}>
+            Upload CSV
+          </Button>
+        )}
+
+        <Button
+          as={Link}
+          to={`/teacher/examinations/${card.examination_id}/subjects/${card.subject_id}`}
+          variant={card.can_upload ? 'secondary' : 'primary'}
+          size="sm"
+          icon={card.can_upload ? 'pen-to-square' : 'eye'}
+        >
+          {card.can_upload ? (isDone ? 'Manage marks' : 'Enter marks') : 'View results'}
+        </Button>
+
         <Button
           variant="secondary"
           size="sm"
@@ -158,16 +179,7 @@ export function SubjectCard({ card, onDownloadError }) {
             )
           }
         >
-          CSV template
-        </Button>
-
-        <Button
-          as={Link}
-          to={`/teacher/examinations/${card.examination_id}/subjects/${card.subject_id}`}
-          size="sm"
-          icon={card.can_upload ? 'cloud-arrow-up' : 'eye'}
-        >
-          {card.can_upload ? (isDone ? 'Manage results' : 'Upload results') : 'View results'}
+          Template
         </Button>
 
         {card.submitted_count > 0 && (

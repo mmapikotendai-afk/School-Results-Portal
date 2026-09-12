@@ -86,6 +86,12 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # Every download names its own file in Content-Disposition, and a browser
+    # cannot read that header cross-origin unless it is exposed here. Without
+    # it the report cards and mark sheets still download, but under whatever
+    # fallback name the frontend guessed. In development the Vite proxy makes
+    # the call same-origin and this never applies; in production it always does.
+    expose_headers=["Content-Disposition"],
 )
 
 # Wording that means "the table or column is not there", across engines:

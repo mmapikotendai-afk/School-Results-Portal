@@ -8,6 +8,7 @@
  */
 
 import apiClient from '@/services/apiClient'
+import { downloadFile } from '@/services/download'
 
 const unwrap = (promise) => promise.then(({ data }) => data)
 
@@ -29,24 +30,7 @@ export const studentResultsService = {
  * Fetched through Axios rather than linked directly: these endpoints need the
  * bearer token, which a plain <a href> would not send.
  */
-async function download(path, fallbackName) {
-  const response = await apiClient.get(path, { responseType: 'blob' })
-
-  const disposition = response.headers['content-disposition'] ?? ''
-  const match = /filename="?([^"';]+)"?/i.exec(disposition)
-  const filename = match?.[1] ?? fallbackName
-
-  const url = URL.createObjectURL(response.data)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
-  // Revoking immediately can cancel the download in some browsers.
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
-  return filename
-}
+const download = downloadFile
 
 export const studentDownloads = {
   csv: (examinationId, label = 'results') =>

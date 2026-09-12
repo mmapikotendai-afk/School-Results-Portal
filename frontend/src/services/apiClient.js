@@ -82,6 +82,13 @@ export function getErrorMessage(error, fallback = 'Something went wrong. Please 
   }
 
   if (!error.response) {
+    // Axios sets `request` when the call went out but nothing came back, which
+    // is the only case that genuinely means the server is unreachable. An
+    // error without it was raised by our own code - the download helper
+    // rejecting an empty or non-file response, say - and its message is
+    // already written for the user, so reporting a network fault instead
+    // would send them looking for the wrong problem.
+    if (!error.request && error.message) return error.message
     return 'Cannot reach the server. Check that the backend is running.'
   }
 

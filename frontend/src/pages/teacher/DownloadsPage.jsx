@@ -4,6 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import EmptyState from '@/components/common/EmptyState'
 import PageHeader from '@/components/common/PageHeader'
 import Toast from '@/components/common/Toast'
+import UploadDialog from '@/components/teacher/UploadDialog'
 import {
   Alert,
   Badge,
@@ -41,6 +42,9 @@ export function DownloadsPage() {
   const [classId, setClassId] = useState('')
   const [classes, setClasses] = useState([])
   const [busy, setBusy] = useState(null)
+  // The return leg of the trip: a teacher who took a template away comes back
+  // here to bring it in, so the import lives on this page too.
+  const [uploadOpen, setUploadOpen] = useState(false)
   const { toast, show, clear } = useToast()
 
   // Distinct examinations, in the order the server returned them (newest first).
@@ -240,6 +244,25 @@ export function DownloadsPage() {
                   {rollSize} student{rollSize === 1 ? '' : 's'}
                   {classId ? ' in this class' : ' on the roll'}
                 </span>
+
+                {/* Taking the template out and bringing the marks back are two
+                    halves of one errand, so the import sits beside the roll it
+                    belongs to rather than on another page. */}
+                {selected.can_upload ? (
+                  <Button
+                    size="sm"
+                    icon="cloud-arrow-up"
+                    className="ml-auto"
+                    onClick={() => setUploadOpen(true)}
+                  >
+                    Upload marks
+                  </Button>
+                ) : (
+                  <span className="text-ink-400 ml-auto flex items-center gap-1.5 text-xs">
+                    <FontAwesomeIcon icon="lock" aria-hidden="true" />
+                    Not accepting marks
+                  </span>
+                )}
               </div>
             )}
           </Card>
@@ -280,6 +303,18 @@ export function DownloadsPage() {
             </Card>
           )}
         </div>
+      )}
+
+      {uploadOpen && selected && (
+        <UploadDialog
+          open
+          sheet={selected}
+          onClose={() => setUploadOpen(false)}
+          onUploaded={(result) => {
+            setUploadOpen(false)
+            show(result.detail)
+          }}
+        />
       )}
 
       <Toast toast={toast} onDismiss={clear} />

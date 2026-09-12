@@ -8,6 +8,7 @@
  */
 
 import apiClient from '@/services/apiClient'
+import { downloadFile } from '@/services/download'
 
 const unwrap = (promise) => promise.then(({ data }) => data)
 
@@ -77,25 +78,7 @@ export const teacherPortalService = {
  * Fetched through Axios rather than linked directly: the endpoints need the
  * bearer token, which a plain <a href> would not send.
  */
-async function download(path, fallbackName) {
-  const response = await apiClient.get(path, { responseType: 'blob' })
-
-  // Prefer the filename the server chose, so exports are named consistently.
-  const disposition = response.headers['content-disposition'] ?? ''
-  const match = /filename="?([^"';]+)"?/i.exec(disposition)
-  const filename = match?.[1] ?? fallbackName
-
-  const url = URL.createObjectURL(response.data)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
-  // Revoking immediately can cancel the download in some browsers.
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
-  return filename
-}
+const download = downloadFile
 
 export const teacherDownloads = {
   /** `classId` narrows the roll to one class; omit it for the whole subject. */

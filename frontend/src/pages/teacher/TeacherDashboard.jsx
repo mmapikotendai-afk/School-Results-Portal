@@ -5,6 +5,7 @@ import PageHeader from '@/components/common/PageHeader'
 import StatTile from '@/components/common/StatTile'
 import Toast from '@/components/common/Toast'
 import SubjectCard from '@/components/teacher/SubjectCard'
+import UploadDialog from '@/components/teacher/UploadDialog'
 import { Alert, Button, Card, CardBody, PageLoader } from '@/components/ui'
 import useAsyncData from '@/hooks/useAsyncData'
 import useDocumentTitle from '@/hooks/useDocumentTitle'
@@ -26,6 +27,10 @@ export function TeacherDashboard() {
   )
   const { toast, show, clear } = useToast()
   const [refreshing, setRefreshing] = useState(false)
+  // The subject whose import dialog is open, or null. One dialog serves every
+  // card, and the dashboard owns it so the tiles and progress bars above can
+  // be re-read once marks land.
+  const [uploadFor, setUploadFor] = useState(null)
 
   async function handleRefresh() {
     setRefreshing(true)
@@ -104,6 +109,7 @@ export function TeacherDashboard() {
               key={`${card.examination_id}-${card.subject_id}`}
               card={card}
               onDownloadError={(message) => show(message, 'danger')}
+              onUpload={setUploadFor}
             />
           ))}
         </div>
@@ -123,6 +129,19 @@ export function TeacherDashboard() {
             </CardBody>
           </Card>
         )
+      )}
+
+      {uploadFor && (
+        <UploadDialog
+          open
+          sheet={uploadFor}
+          onClose={() => setUploadFor(null)}
+          onUploaded={(result) => {
+            setUploadFor(null)
+            refresh()
+            show(result.detail)
+          }}
+        />
       )}
 
       <Toast toast={toast} onDismiss={clear} />

@@ -450,21 +450,28 @@ export function ExaminationsPage() {
         />
       )}
 
-      <ConfirmDialog
-        open={Boolean(transition)}
-        onClose={() => setTransition(null)}
-        onConfirm={() => applyStatus(transition.exam, transition.status)}
-        title={`${transition?.copy.label}?`}
-        message={
-          transition?.status === 'SUBMISSION_OPEN'
-            ? `Teachers assigned to subjects will be able to upload results for ${transition?.exam.name}, and submission tracking will be created for each of them.`
-            : transition?.status === 'UNDER_REVIEW'
-              ? `${transition?.exam.name} moves to review, where results can be corrected before they are published.`
-              : `${transition?.exam.name} will move to ${statusLabel(transition?.status).toLowerCase()}.`
-        }
-        confirmLabel={transition?.copy.label}
-        icon={transition?.copy.icon}
-      />
+      {/* Mounted only while a transition is pending, like every other dialog
+          on this page. Kept mounted it has to describe a transition that is
+          not happening, and the copy below cannot be written safely for that
+          case - statusLabel(undefined) is undefined, and undefined has no
+          toLowerCase. */}
+      {transition && (
+        <ConfirmDialog
+          open
+          onClose={() => setTransition(null)}
+          onConfirm={() => applyStatus(transition.exam, transition.status)}
+          title={`${transition.copy.label}?`}
+          message={
+            transition.status === 'SUBMISSION_OPEN'
+              ? `Teachers assigned to subjects will be able to upload results for ${transition.exam.name}, and submission tracking will be created for each of them.`
+              : transition.status === 'UNDER_REVIEW'
+                ? `${transition.exam.name} moves to review, where results can be corrected before they are published.`
+                : `${transition.exam.name} will move to ${statusLabel(transition.status).toLowerCase()}.`
+          }
+          confirmLabel={transition.copy.label}
+          icon={transition.copy.icon}
+        />
+      )}
 
       <Toast toast={toast} onDismiss={clear} />
     </div>
