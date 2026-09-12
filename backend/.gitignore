@@ -6,3 +6,6 @@ venv/
 *.egg-info/
 .pytest_cache/
 uploads/
+
+# Development email outbox: rendered messages, never committed.
+var/

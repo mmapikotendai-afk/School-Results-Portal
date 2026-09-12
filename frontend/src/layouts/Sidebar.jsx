@@ -12,12 +12,12 @@ export function Sidebar({ role, onNavigate }) {
 
   return (
     <div className="bg-brand-950 flex h-full w-72 flex-col">
-      <div className="border-brand-900/70 flex h-16 shrink-0 items-center border-b px-5">
+      <div className="border-brand-900 flex h-16 shrink-0 items-center border-b px-5">
         <Logo inverted size="sm" />
       </div>
 
-      <div className="border-brand-900/70 border-b px-5 py-3">
-        <p className="text-brand-400 text-[11px] font-semibold tracking-wider uppercase">
+      <div className="border-brand-900 border-b px-5 py-3">
+        <p className="text-brand-300 text-[11px] font-bold tracking-[0.16em] uppercase">
           {roleLabel(role)}
         </p>
       </div>
@@ -26,7 +26,7 @@ export function Sidebar({ role, onNavigate }) {
         {groups.map((group, index) => (
           <div key={group.section ?? `group-${index}`} className={cx(index > 0 && 'mt-5')}>
             {group.section && (
-              <p className="text-brand-400/80 px-3 pb-2 text-[11px] font-semibold tracking-wider uppercase">
+              <p className="text-brand-300/90 px-3 pb-2 text-[11px] font-bold tracking-[0.16em] uppercase">
                 {group.section}
               </p>
             )}
@@ -42,7 +42,7 @@ export function Sidebar({ role, onNavigate }) {
                     cx(
                       'nav-item group relative',
                       isActive
-                        ? 'bg-brand-800 text-white'
+                        ? 'bg-brand-800 font-semibold text-white'
                         : 'text-brand-200 hover:bg-brand-900 hover:text-white',
                     )
                   }
@@ -53,7 +53,7 @@ export function Sidebar({ role, onNavigate }) {
                           readable at a glance and not by colour alone. */}
                       <span
                         className={cx(
-                          'bg-accent-400 absolute top-1/2 left-0 h-5 w-1 -translate-y-1/2 rounded-r-full transition-opacity',
+                          'bg-accent-500 absolute top-0 bottom-0 left-0 w-[3px] transition-opacity',
                           isActive ? 'opacity-100' : 'opacity-0',
                         )}
                         aria-hidden="true"
@@ -73,7 +73,7 @@ export function Sidebar({ role, onNavigate }) {
         ))}
       </nav>
 
-      <div className="border-brand-900/70 text-brand-400 shrink-0 border-t px-5 py-4 text-xs">
+      <div className="border-brand-900 text-brand-300 shrink-0 border-t px-5 py-4 text-[11px] tracking-wide">
         Results Portal &middot; v0.1.0
       </div>
     </div>

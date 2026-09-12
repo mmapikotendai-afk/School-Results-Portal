@@ -9,18 +9,21 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
 from app.dependencies.auth import require_admin
 from app.models.enums import UserRole
 from app.models.user import User
-from app.schemas.common import Message
 from app.schemas.user import (
     AccountCreate,
+    AccountProvisioned,
     AccountStatusUpdate,
-    AdminPasswordReset,
+    CredentialDelivery,
     UserRead,
 )
 from app.services.account_service import AccountService
+from app.services import email_service
+from app.services.provisioning_service import ProvisioningService
 
 router = APIRouter(
     prefix="/admin/accounts",
@@ -40,16 +43,72 @@ def list_accounts(
 
 @router.post(
     "",
-    response_model=UserRead,
+    response_model=AccountProvisioned,
     status_code=status.HTTP_201_CREATED,
-    summary="Create a teacher or student account",
+    summary="Create an admin, teacher or student account",
 )
-def create_account(payload: AccountCreate, db: Session = Depends(get_db)) -> User:
-    """Provision an account. This is the only route by which accounts appear."""
-    user, problem = AccountService(db).create_account(payload)
+def create_account(
+    payload: AccountCreate, db: Session = Depends(get_db)
+) -> AccountProvisioned:
+    """Provision an account and email its temporary password to the holder.
+
+    This is the only route by which accounts appear: there is no public
+    registration, and no way for a user to create their own.
+
+    The response reports whether the credential email was delivered. It does
+    not contain the password, and there is no field in which it could.
+    """
+    # Checked before anything is written: the password is generated, hashed
+    # and dropped, so an address that cannot receive mail produces an account
+    # nobody can ever sign in as.
+    undeliverable = email_service.verify_deliverable(str(payload.email))
+    if undeliverable:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"That email address cannot receive mail. {undeliverable}",
+        )
+
+    user, password, problem = AccountService(db).create_account(payload)
     if problem:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=problem)
-    return user
+
+    kept, result = ProvisioningService(db).deliver_or_discard(user, password)
+    del password
+    if not kept:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=(
+                "The account was not created: its credentials could not be emailed. "
+                f"{result.error or result.detail}"
+            ),
+        )
+
+    return AccountProvisioned(
+        user_id=user.id,
+        full_name=user.full_name,
+        role=user.role,
+        delivery=_delivery(user, result),
+        detail=result.detail,
+    )
+
+
+@router.post(
+    "/{user_id}/resend-credentials",
+    response_model=CredentialDelivery,
+    summary="Resend login credentials",
+)
+def resend_credentials(user_id: int, db: Session = Depends(get_db)) -> CredentialDelivery:
+    """Issue a new temporary password and email it to the account holder.
+
+    Replaces the administrator password reset that used to take a typed
+    password. Nobody chooses this value and nobody sees it but the holder:
+    it is generated, hashed, sent, and dropped. The previous password stops
+    working the moment the hash is replaced, and every session the account
+    holds is ended.
+    """
+    user = _get_user(db, user_id)
+    result = ProvisioningService(db).reissue_credentials(user)
+    return _delivery(user, result)
 
 
 @router.patch(
@@ -76,24 +135,17 @@ def set_account_status(
     return AccountService(db).set_active(user, payload.is_active)
 
 
-@router.post(
-    "/{user_id}/reset-password",
-    response_model=Message,
-    summary="Issue a new password for an account",
-)
-def reset_password(
-    user_id: int,
-    payload: AdminPasswordReset,
-    db: Session = Depends(get_db),
-) -> Message:
-    """Set a new password and end every session that account holds."""
-    user = _get_user(db, user_id)
-    AccountService(db).reset_password(user, payload.new_password)
-    return Message(
-        detail=(
-            f"A new password has been set for {user.email}. They will be asked "
-            "to change it from Settings."
-        )
+def _delivery(user: User, result) -> CredentialDelivery:
+    """The delivery outcome, in the shape the admin UI reads."""
+    domain = (settings.STUDENT_EMAIL_DOMAIN or "").strip().lower()
+    real_mailbox = bool(domain) and not user.email.strip().lower().endswith(f"@{domain}")
+    return CredentialDelivery(
+        email=user.email,
+        status=result.status,
+        sent=result.sent,
+        sent_at=user.email_sent_at,
+        detail=result.detail,
+        can_resend=real_mailbox,
     )
 
 

@@ -1,12 +1,22 @@
 import { cx } from '@/utils/format'
 import { statusLabel } from '@/utils/constants'
 
+/**
+ * A status is letterspaced type sitting on a 2px rule, not a filled pill.
+ *
+ * Three reasons it is drawn this way. Report cards and marksheets get
+ * printed, and a tinted pill either eats toner or vanishes; a rule survives
+ * both. A screen listing forty submissions turns forty pills into confetti,
+ * where forty short rules stay quiet. And the colour is carried by the text
+ * itself, so the status is still readable in greyscale — the meaning never
+ * depends on the colour alone.
+ */
 const TONES = {
-  neutral: 'bg-ink-100 text-ink-700 ring-ink-200',
-  brand: 'bg-brand-50 text-brand-700 ring-brand-200',
-  success: 'bg-success-50 text-success-700 ring-success-100',
-  warning: 'bg-warning-50 text-warning-700 ring-warning-100',
-  danger: 'bg-danger-50 text-danger-700 ring-danger-100',
+  neutral: 'text-ink-400',
+  brand: 'text-brand-800',
+  success: 'text-success-600',
+  warning: 'text-warning-600',
+  danger: 'text-danger-600',
 }
 
 /**
@@ -39,13 +49,7 @@ export function Badge({ tone = 'neutral', status, className, children }) {
   const resolved = status ? (STATUS_TONES[status] ?? 'neutral') : tone
 
   return (
-    <span
-      className={cx(
-        'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset',
-        TONES[resolved],
-        className,
-      )}
-    >
+    <span className={cx('status-chip', TONES[resolved], className)}>
       {children ?? statusLabel(status)}
     </span>
   )

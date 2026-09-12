@@ -92,3 +92,24 @@ class SubmissionStatus(str, enum.Enum):
     OVERDUE = "OVERDUE"
     SUBMITTED = "SUBMITTED"
     LATE = "LATE"
+
+
+class EmailDeliveryStatus(str, enum.Enum):
+    """Outcome of the credential email sent when an account is provisioned.
+
+    NOT_SENT   no delivery has been attempted for this account yet
+    PENDING    an attempt is in flight
+    SENT       the provider accepted the message
+    FAILED     the provider rejected it, or could not be reached
+    SKIPPED    no attempt was made: email is disabled, or the address is a
+               derived sign-in identifier rather than a real mailbox
+
+    "SENT" means accepted for delivery, which is as much as SMTP can tell us.
+    A later bounce is not visible here.
+    """
+
+    NOT_SENT = "NOT_SENT"
+    PENDING = "PENDING"
+    SENT = "SENT"
+    FAILED = "FAILED"
+    SKIPPED = "SKIPPED"

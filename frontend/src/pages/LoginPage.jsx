@@ -97,8 +97,9 @@ export function LoginPage() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="font-serif text-3xl font-semibold">Sign in</h1>
-        <p className="text-ink-500 mt-2 text-sm">
+        <p className="rule-label mb-3">Results Portal</p>
+        <h1 className="text-[32px] leading-none font-bold tracking-tight">Sign in</h1>
+        <p className="text-ink-500 mt-3 text-sm">
           Use the credentials issued to you by the school office.
         </p>
       </div>

@@ -31,11 +31,11 @@ export function Topbar({ onOpenMenu }) {
   }
 
   return (
-    <header className="border-ink-200 sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-white/90 px-4 backdrop-blur sm:px-6">
+    <header className="border-ink-200 sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-white/95 px-4 backdrop-blur sm:px-6">
       <button
         type="button"
         onClick={onOpenMenu}
-        className="text-ink-600 hover:bg-ink-100 -ml-1 rounded-lg p-2 transition-colors lg:hidden"
+        className="text-ink-600 hover:bg-ink-100 -ml-1 p-2 transition-colors lg:hidden"
         aria-label="Open navigation menu"
       >
         <FontAwesomeIcon icon="bars" />
@@ -52,7 +52,7 @@ export function Topbar({ onOpenMenu }) {
       <div className="flex items-center gap-2 sm:gap-3">
         <div className="hidden text-right sm:block">
           <p className="text-ink-900 text-sm leading-tight font-semibold">{user?.full_name}</p>
-          <p className="text-ink-500 text-xs">
+          <p className="text-ink-500 text-[11px] tracking-wide">
             {roleLabel(user?.role)}
             {identifier ? ` · ${identifier}` : ''}
           </p>
@@ -60,7 +60,7 @@ export function Topbar({ onOpenMenu }) {
 
         <Link
           to={settingsPathForRole(user?.role)}
-          className="text-ink-500 hover:bg-ink-100 hover:text-ink-900 rounded-lg p-2 transition-colors"
+          className="text-ink-500 hover:bg-ink-100 hover:text-ink-900 p-2 transition-colors"
           aria-label="Settings"
           title="Settings"
         >
@@ -68,7 +68,7 @@ export function Topbar({ onOpenMenu }) {
         </Link>
 
         <span
-          className="bg-brand-100 text-brand-800 flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold"
+          className="bg-brand-800 flex size-9 shrink-0 items-center justify-center text-[13px] font-bold tracking-wide text-white"
           aria-hidden="true"
         >
           {initials(user?.full_name)}

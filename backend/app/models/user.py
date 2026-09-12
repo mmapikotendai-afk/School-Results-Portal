@@ -7,7 +7,7 @@ from sqlalchemy import Boolean, DateTime, Enum, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
-from app.models.enums import UserRole
+from app.models.enums import EmailDeliveryStatus, UserRole
 from app.models.mixins import TimestampMixin
 
 
@@ -49,6 +49,21 @@ class User(Base, TimestampMixin):
 
     password_changed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+
+    # Delivery record for the credential email. This tracks whether the
+    # temporary password reached the holder, which is the difference between
+    # "the account is ready" and "the account exists but nobody can get in".
+    # The password itself is never recorded here, or anywhere else.
+    email_sent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    email_sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    email_delivery_status: Mapped[EmailDeliveryStatus] = mapped_column(
+        Enum(EmailDeliveryStatus),
+        default=EmailDeliveryStatus.NOT_SENT,
+        nullable=False,
+    )
+    # Why the last attempt failed, so an administrator can act on it. Provider
+    # text only - it never carries the message body or the password.
+    email_last_error: Mapped[Optional[str]] = mapped_column(String(255))
 
     student: Mapped[Optional["Student"]] = relationship(  # noqa: F821
         back_populates="user", uselist=False, cascade="all, delete-orphan"

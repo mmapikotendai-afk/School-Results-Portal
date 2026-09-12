@@ -5,6 +5,7 @@ thing needed here, and the cost factor stays explicit and auditable.
 """
 
 import re
+import secrets
 from typing import List
 
 import bcrypt
@@ -75,3 +76,28 @@ def describe_password_policy() -> str:
         f"At least {MIN_PASSWORD_LENGTH} characters, "
         "including a letter and a number."
     )
+
+
+# Ambiguous characters are left out so a password read aloud, or off a printed
+# slip, cannot be mistyped: no 0/O, no 1/l/I.
+_UNAMBIGUOUS_LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+_UNAMBIGUOUS_DIGITS = "23456789"
+
+
+def generate_temporary_password(length: int = 12) -> str:
+    """A random one-time password that satisfies the policy above.
+
+    Built from the CSPRNG, never from a seeded or time-based source. The value
+    is returned to the caller, hashed, emailed, and then dropped: it is not
+    stored, logged or recoverable afterwards.
+    """
+    length = max(MIN_PASSWORD_LENGTH, length)
+    # Two digits guarantee the "must contain a number" rule, and the shuffle
+    # keeps them from always landing at the end.
+    characters = [secrets.choice(_UNAMBIGUOUS_DIGITS) for _ in range(2)]
+    characters += [secrets.choice(_UNAMBIGUOUS_LETTERS) for _ in range(length - 2)]
+
+    # secrets.SystemRandom, not random.shuffle: the ordering is part of the
+    # secret and must come from the same source as the characters.
+    secrets.SystemRandom().shuffle(characters)
+    return "".join(characters)

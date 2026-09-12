@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Heraldic Swiss — v0</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Spectral:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet" />
+<style>
+:root{
+  --navy-950:#000B33; --navy-900:#001152; --navy-800:#001870; --navy-700:#0A2489;
+  --navy-600:#1A34A0; --navy-300:#8A97D4; --navy-100:#D6DBF0; --navy-50:#EEF0F9;
+  --red-700:#A3000C; --red-600:#C4000E; --red-500:#E00010; --red-100:#FBD9DB;
+  --paper:#FAFAF8; --paper-2:#F2F2EE;
+  --ink-900:#0A0A0A; --ink-700:#2E2E2E; --ink-500:#5C5C5C; --ink-400:#8A8A8A; --ink-200:#D8D8D4;
+  --pass:#0B6B3A; --pend:#8A5A00; --fail:#7A0B1E;
+  --sans:'Public Sans',system-ui,sans-serif;
+  --serif:'Spectral',Georgia,serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink-900);font-family:var(--sans);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
+h1,h2,h3{margin:0;font-weight:600;letter-spacing:-0.02em;line-height:1.1}
+p{margin:0}
+code{font-size:13px;background:var(--paper-2);padding:1px 5px}
+.wrap{max-width:1200px;margin:0 auto;padding:0 24px}
+
+/* signature move 1: masthead rule, navy with a vermilion segment */
+.masthead-rule{height:4px;background:var(--navy-800);display:flex}
+.masthead-rule::before{content:"";width:96px;background:var(--red-500)}
+
+.masthead{background:#fff;border-bottom:1px solid var(--ink-200)}
+.masthead .wrap{display:flex;align-items:center;gap:16px;height:72px}
+.masthead img{height:44px;width:auto}
+.mark-name{font-family:var(--serif);font-size:20px;font-weight:600;line-height:1.1}
+.mark-sub{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-500);font-weight:600}
+
+/* signature move 2: oversized section numeral */
+section{padding:64px 0;border-bottom:1px solid var(--ink-200)}
+.sec-head{display:flex;gap:24px;align-items:baseline;margin-bottom:32px}
+.num{font-size:44px;font-weight:700;color:var(--navy-800);line-height:1;font-variant-numeric:tabular-nums;min-width:64px}
+.sec-title{font-size:24px}
+.sec-desc{color:var(--ink-500);font-size:14px;margin-top:4px;max-width:62ch}
+
+.grid{display:grid;gap:1px;background:var(--ink-200);border:1px solid var(--ink-200)}
+.g4{grid-template-columns:repeat(4,1fr)}
+.g3{grid-template-columns:repeat(3,1fr)}
+@media(max-width:860px){.g4,.g3{grid-template-columns:repeat(2,1fr)}}
+
+.sw{background:#fff;padding:16px}
+.sw .chip{height:64px;border:1px solid rgba(0,0,0,.12)}
+.sw .nm{margin-top:12px;font-size:13px;font-weight:600}
+.sw .hx{font-size:12px;color:var(--ink-500);font-variant-numeric:tabular-nums}
+
+.tr{display:flex;align-items:baseline;gap:24px;padding:12px 0;border-bottom:1px solid var(--ink-200)}
+.tr:last-child{border-bottom:0}
+.tr .lbl{font-size:11px;color:var(--ink-400);letter-spacing:.1em;text-transform:uppercase;min-width:110px;font-weight:600;flex:none}
+
+/* controls: radius 0, no shadow */
+.btn{display:inline-flex;align-items:center;gap:8px;font-family:var(--sans);font-size:14px;font-weight:600;padding:11px 20px;border:1px solid transparent;border-radius:0;cursor:pointer;transition:background-color .12s linear,color .12s linear}
+.btn-primary{background:var(--navy-800);color:#fff}
+.btn-primary:hover{background:var(--navy-700)}
+.btn-accent{background:var(--red-500);color:#fff}
+.btn-accent:hover{background:var(--red-600)}
+.btn-secondary{background:#fff;color:var(--ink-900);border-color:var(--ink-900)}
+.btn-secondary:hover{background:var(--paper-2)}
+.btn-ghost{background:transparent;color:var(--ink-700)}
+.btn-ghost:hover{background:var(--paper-2)}
+
+/* signature move 5: status as letterspaced type on a rule, not a filled pill */
+.st{display:inline-flex;align-items:center;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:3px 0 4px;border-bottom:2px solid currentColor}
+.st-pass{color:var(--pass)} .st-pend{color:var(--pend)} .st-fail{color:var(--fail)}
+.st-pub{color:var(--navy-800)} .st-draft{color:var(--ink-400)}
+
+.tile{background:#fff;padding:24px}
+.tile .lbl{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-500);font-weight:700}
+.tile .val{font-size:44px;font-weight:700;letter-spacing:-.03em;margin-top:12px;font-variant-numeric:tabular-nums;line-height:1}
+.tile .hint{font-size:12px;color:var(--ink-400);margin-top:6px}
+.tile .val .unit{font-size:20px;color:var(--ink-400);font-weight:500}
+
+table{width:100%;border-collapse:collapse;background:#fff;font-size:14px}
+th{text-align:left;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-500);font-weight:700;padding:12px 16px;border-bottom:2px solid var(--ink-900);white-space:nowrap}
+td{padding:12px 16px;border-bottom:1px solid var(--ink-200);border-right:1px solid var(--ink-200)}
+td:last-child,th:last-child{border-right:0}
+tbody tr:hover{background:var(--navy-50)}
+.mark{font-variant-numeric:tabular-nums;font-weight:600}
+
+.side{background:var(--navy-950);width:264px;padding:0 0 16px}
+.side-top{height:72px;display:flex;align-items:center;gap:12px;padding:0 20px;border-bottom:1px solid rgba(255,255,255,.12)}
+.side-top .chip{background:#fff;padding:4px 6px;display:flex}
+.side-top img{height:28px;width:auto}
+.side-top .t{color:#fff;font-family:var(--serif);font-size:15px;font-weight:600;line-height:1.1}
+.side-sec{color:var(--navy-300);font-size:10px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;padding:20px 20px 8px}
+.nav{display:flex;align-items:center;gap:12px;padding:10px 20px;color:var(--navy-100);font-size:14px;font-weight:500;position:relative;cursor:pointer}
+.nav:hover{background:rgba(255,255,255,.06);color:#fff}
+.nav.on{background:var(--navy-800);color:#fff;font-weight:600}
+.nav.on::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--red-500)}
+.nav .ic{width:16px;height:16px;border:1.5px solid currentColor;opacity:.7;flex:none}
+
+.login{background:#fff;border:1px solid var(--ink-900);padding:40px;max-width:420px}
+.field{margin-bottom:20px}
+.field label{display:block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:var(--ink-700);margin-bottom:6px}
+.field input{width:100%;padding:11px 14px;border:1px solid var(--ink-200);border-radius:0;font-family:var(--sans);font-size:15px;background:var(--paper)}
+.field input:focus{outline:2px solid var(--navy-800);outline-offset:1px;border-color:var(--navy-800);background:#fff}
+
+.seal{display:flex;align-items:center;gap:20px;border:1px solid var(--ink-900);padding:24px;background:#fff;flex-wrap:wrap}
+.seal img{height:88px;width:auto}
+.motto{font-family:var(--serif);font-size:18px;font-weight:500;font-style:italic;color:var(--navy-800)}
+.motto-t{font-size:12px;color:var(--ink-500);margin-top:4px}
+
+.two{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:start}
+@media(max-width:860px){.two{grid-template-columns:1fr}}
+.rowwrap{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.note{font-size:13px;color:var(--ink-500);margin-top:16px;max-width:74ch;text-wrap:pretty}
+.kill{text-decoration:line-through;color:var(--ink-400)}
+.tablewrap{margin-top:32px;border:1px solid var(--ink-200);overflow-x:auto}
+</style>
+</head>
+<body>
+
+<div class="masthead-rule"></div>
+<header class="masthead">
+  <div class="wrap">
+    <img src="./public/logo.png" alt="" />
+    <div>
+      <div class="mark-name">Presbyterian High School</div>
+      <div class="mark-sub">Results Portal</div>
+    </div>
+    <div style="flex:1"></div>
+    <span class="st st-pub">v0 &middot; Heraldic Swiss</span>
+  </div>
+</header>
+
+<div class="wrap">
+
+<section>
+  <div class="sec-head"><div class="num">01</div>
+    <div><h2 class="sec-title">Palette, taken from the crest</h2>
+    <p class="sec-desc">Every value below was sampled from <code>logo.png</code>, not invented. Navy and vermilion are the only brand hues. The old cornflower blue and the gold that appears nowhere in the crest are both retired.</p></div>
+  </div>
+  <div class="grid g4">
+    <div class="sw"><div class="chip" style="background:var(--navy-800)"></div><div class="nm">Navy &mdash; crest body</div><div class="hx">#001870 &middot; 27% of crest</div></div>
+    <div class="sw"><div class="chip" style="background:var(--red-500)"></div><div class="nm">Vermilion &mdash; single accent</div><div class="hx">#E00010 &middot; 14% of crest</div></div>
+    <div class="sw"><div class="chip" style="background:var(--paper);border-color:var(--ink-200)"></div><div class="nm">Paper &mdash; ground</div><div class="hx">#FAFAF8</div></div>
+    <div class="sw"><div class="chip" style="background:var(--ink-900)"></div><div class="nm">Ink &mdash; rules &amp; type</div><div class="hx">#0A0A0A</div></div>
+  </div>
+  <div class="grid g3" style="margin-top:24px">
+    <div class="sw"><div class="chip" style="background:var(--pass)"></div><div class="nm">Pass / Published</div><div class="hx">#0B6B3A</div></div>
+    <div class="sw"><div class="chip" style="background:var(--pend)"></div><div class="nm">Pending / Overdue</div><div class="hx">#8A5A00</div></div>
+    <div class="sw"><div class="chip" style="background:var(--fail)"></div><div class="nm">Fail / Danger &mdash; garnet</div><div class="hx">#7A0B1E</div></div>
+  </div>
+  <p class="note"><strong>The collision, resolved.</strong> Crest vermilion <strong style="color:var(--red-500)">#E00010</strong> is reserved for institutional marks only &mdash; masthead, seal, active nav. Failure states use garnet <strong style="color:var(--fail)">#7A0B1E</strong>, dark enough that a failing grade never reads as brand decoration.</p>
+</section>
+
+<section>
+  <div class="sec-head"><div class="num">02</div>
+    <div><h2 class="sec-title">Type</h2>
+    <p class="sec-desc">Public Sans for interface and data &mdash; the US Web Design System face, built for official records interfaces. Spectral for the ceremonial register. Two families, tabular numerals, no third font.</p></div>
+  </div>
+  <div style="background:#fff;border:1px solid var(--ink-200);padding:24px">
+    <div class="tr"><span class="lbl">Display 64</span><span style="font-size:64px;font-weight:700;letter-spacing:-.03em">Results</span></div>
+    <div class="tr"><span class="lbl">H1 &middot; 44</span><span style="font-size:44px;font-weight:600;letter-spacing:-.02em">Examination results</span></div>
+    <div class="tr"><span class="lbl">H2 &middot; 32</span><span style="font-size:32px;font-weight:600">Term two, Form 4A</span></div>
+    <div class="tr"><span class="lbl">Serif &middot; 24</span><span style="font-family:var(--serif);font-size:24px;font-weight:600">Report Card &amp; Transcript</span></div>
+    <div class="tr"><span class="lbl">Body &middot; 16</span><span style="font-size:16px">Teachers submit marks; administrators verify and publish them.</span></div>
+    <div class="tr"><span class="lbl">Data &middot; 14</span><span style="font-size:14px;font-variant-numeric:tabular-nums">0123456789 &middot; 78.5 &middot; 91.0 &middot; 64.25</span></div>
+    <div class="tr"><span class="lbl">Micro &middot; 11</span><span class="st st-pub">Submission complete</span></div>
+  </div>
+  <p class="note">H1 44 : body 16 = <strong>2.75&times;</strong>. The current build sits at about 2.1&times;, below the 2.5&times; hierarchy bar.</p>
+</section>
+
+<section>
+  <div class="sec-head"><div class="num">03</div>
+    <div><h2 class="sec-title">Controls</h2>
+    <p class="sec-desc">Radius 0. No shadows. Elevation is expressed with rules and ground shifts, the way a printed form does it.</p></div>
+  </div>
+  <div class="rowwrap">
+    <button class="btn btn-primary">Publish results</button>
+    <button class="btn btn-accent">Resend credentials</button>
+    <button class="btn btn-secondary">Export CSV</button>
+    <button class="btn btn-ghost">Cancel</button>
+  </div>
+  <div class="rowwrap" style="margin-top:28px">
+    <span class="st st-pub">Published</span>
+    <span class="st st-pass">Submitted</span>
+    <span class="st st-pend">Overdue</span>
+    <span class="st st-fail">Rejected</span>
+    <span class="st st-draft">Draft</span>
+  </div>
+  <p class="note">Status chips are letterspaced type on a 2px rule &mdash; not filled pills. They stay legible in print and never compete with the crest.</p>
+</section>
+
+<section>
+  <div class="sec-head"><div class="num">04</div>
+    <div><h2 class="sec-title">Metrics &amp; tables</h2>
+    <p class="sec-desc">The rounded icon chip is gone. A number set this large does not need an ornament beside it to be found.</p></div>
+  </div>
+  <div class="grid g4">
+    <div class="tile"><div class="lbl">Students enrolled</div><div class="val">1,284</div><div class="hint">Across 14 classes</div></div>
+    <div class="tile"><div class="lbl">Marks submitted</div><div class="val">92<span class="unit">%</span></div><div class="hint">of 48 subject sheets</div></div>
+    <div class="tile"><div class="lbl">Awaiting review</div><div class="val">7</div><div class="hint">2 overdue</div></div>
+    <div class="tile"><div class="lbl">Class average</div><div class="val">64.8</div><div class="hint">Term 2, 2026</div></div>
+  </div>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Student</th><th>Number</th><th>Subject</th><th style="text-align:right">Mark</th><th>Grade</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td>Tendai Moyo</td><td class="mark">PHS-2412</td><td>Mathematics</td><td class="mark" style="text-align:right">78.5</td><td class="mark">B</td><td><span class="st st-pub">Published</span></td></tr>
+      <tr><td>Rutendo Chirwa</td><td class="mark">PHS-2418</td><td>Combined Science</td><td class="mark" style="text-align:right">91.0</td><td class="mark">A</td><td><span class="st st-pub">Published</span></td></tr>
+      <tr><td>Farai Ncube</td><td class="mark">PHS-2431</td><td>English Language</td><td class="mark" style="text-align:right">64.0</td><td class="mark">C</td><td><span class="st st-pass">Submitted</span></td></tr>
+      <tr><td>Nyasha Dube</td><td class="mark">PHS-2447</td><td>Geography</td><td class="mark" style="text-align:right">&mdash;</td><td class="mark">&mdash;</td><td><span class="st st-pend">Overdue</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">Column rules are drawn, not implied &mdash; Vignelli's visible grid. Marks use tabular-lining figures so decimal points stack down the column.</p>
+</section>
+
+<section>
+  <div class="sec-head"><div class="num">05</div>
+    <div><h2 class="sec-title">Chrome &amp; entry</h2>
+    <p class="sec-desc">Navigation keeps its existing tree, labels, and the active marker that does not rely on colour alone. Only the visual vocabulary changes.</p></div>
+  </div>
+  <div class="two">
+    <div style="display:flex">
+      <div class="side">
+        <div class="side-top"><span class="chip"><img src="./public/logo.png" alt=""/></span><div><div class="t">Presbyterian</div><div style="color:var(--navy-300);font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:700">Results Portal</div></div></div>
+        <div class="side-sec">Administration</div>
+        <div class="nav on"><span class="ic"></span>Dashboard</div>
+        <div class="nav"><span class="ic"></span>Students</div>
+        <div class="nav"><span class="ic"></span>Teachers</div>
+        <div class="side-sec">Academic</div>
+        <div class="nav"><span class="ic"></span>Examinations</div>
+        <div class="nav"><span class="ic"></span>Results</div>
+      </div>
+    </div>
+    <div>
+      <div class="login">
+        <img src="./public/logo.png" alt="" style="height:72px;width:auto;display:block;margin-bottom:24px"/>
+        <h2 style="font-size:28px;margin-bottom:6px">Sign in</h2>
+        <p style="color:var(--ink-500);font-size:14px;margin-bottom:28px">Accounts are issued by the school office.</p>
+        <div class="field"><label>Email address</label><input type="email" value="t.moyo@presbyterian.ac.zw" readonly /></div>
+        <div class="field"><label>Password</label><input type="password" value="tempvalue123" readonly /></div>
+        <button class="btn btn-primary" style="width:100%;justify-content:center;padding:13px">Sign in</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section style="border-bottom:0">
+  <div class="sec-head"><div class="num">06</div>
+    <div><h2 class="sec-title">The seal</h2>
+    <p class="sec-desc">Published report cards carry the crest and its motto as a real seal &mdash; the one place the identity is stated in full.</p></div>
+  </div>
+  <div class="seal">
+    <img src="./public/logo.png" alt="Presbyterian High School crest" />
+    <div>
+      <div class="motto">Nec tamen consumebatur</div>
+      <div class="motto-t">&ldquo;And yet it was not consumed.&rdquo; &mdash; Exodus 3:2</div>
+      <div style="margin-top:12px;font-size:13px;color:var(--ink-700)">Issued by Presbyterian High School &middot; Term 2, 2026</div>
+    </div>
+  </div>
+  <p class="note" style="margin-top:32px"><strong>Removed in this pass:</strong> <span class="kill">two blur-3xl gradient blobs</span>, <span class="kill">the gold accent</span>, <span class="kill">three shadow tiers</span>, <span class="kill">rounded icon chips</span>, <span class="kill">Inter</span>.</p>
+</section>
+
+</div>
+</body>
+</html>

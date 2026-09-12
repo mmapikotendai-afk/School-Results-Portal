@@ -28,7 +28,7 @@ export function Input({
   return (
     <div className={cx('w-full', className)}>
       {label && (
-        <label htmlFor={id} className="text-ink-700 mb-1.5 block text-sm font-medium">
+        <label htmlFor={id} className="rule-label text-ink-700 mb-2 block">
           {label}
         </label>
       )}
@@ -48,14 +48,14 @@ export function Input({
           aria-invalid={error ? 'true' : undefined}
           aria-describedby={describedBy}
           className={cx(
-            'w-full rounded-lg border bg-white py-2.5 text-sm transition-colors',
+            'w-full border bg-white py-2.5 text-sm transition-colors duration-100',
             'placeholder:text-ink-400 text-ink-900',
             'disabled:bg-ink-100 disabled:text-ink-400 disabled:cursor-not-allowed',
             icon ? 'pl-10' : 'pl-3.5',
             isPassword ? 'pr-11' : 'pr-3.5',
             error
-              ? 'border-danger-500 focus:border-danger-500'
-              : 'border-ink-300 focus:border-brand-500',
+              ? 'border-danger-600 focus:border-danger-600'
+              : 'border-ink-300 focus:border-brand-800',
           )}
           {...props}
         />
@@ -64,7 +64,7 @@ export function Input({
           <button
             type="button"
             onClick={() => setRevealed((value) => !value)}
-            className="text-ink-400 hover:text-ink-700 absolute top-1/2 right-3 -translate-y-1/2 rounded p-1 transition-colors"
+            className="text-ink-400 hover:text-ink-900 absolute top-1/2 right-3 -translate-y-1/2 p-1 transition-colors"
             aria-label={revealed ? 'Hide password' : 'Show password'}
           >
             <FontAwesomeIcon icon={revealed ? 'eye-slash' : 'eye'} />

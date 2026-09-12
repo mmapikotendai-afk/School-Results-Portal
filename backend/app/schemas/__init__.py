@@ -13,7 +13,8 @@ from app.schemas.common import HealthStatus, Message, Page
 from app.schemas.user import (
     AccountCreate,
     AccountStatusUpdate,
-    AdminPasswordReset,
+    AccountProvisioned,
+    CredentialDelivery,
     UserProfile,
     UserRead,
 )
@@ -21,7 +22,8 @@ from app.schemas.user import (
 __all__ = [
     "AccountCreate",
     "AccountStatusUpdate",
-    "AdminPasswordReset",
+    "AccountProvisioned",
+    "CredentialDelivery",
     "ChangePasswordRequest",
     "ChangePasswordResponse",
     "HealthStatus",

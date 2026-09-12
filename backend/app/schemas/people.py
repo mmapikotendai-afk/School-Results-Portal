@@ -7,32 +7,11 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.models.enums import EducationLevel, Gender
 from app.schemas.catalog import ClassSummary, SubjectSummary
-from app.utils.security import MAX_PASSWORD_BYTES, MIN_PASSWORD_LENGTH, password_policy_errors
+from app.schemas.user import CredentialDelivery
 
 
 def _strip(value: Optional[str]) -> Optional[str]:
     return value.strip() if isinstance(value, str) else value
-
-
-class InitialPassword(BaseModel):
-    """Optional starting password for a provisioned account.
-
-    Left empty, one is generated and returned once so the office can hand it
-    over. Either way the account is flagged must_change_password.
-    """
-
-    initial_password: Optional[str] = Field(
-        default=None, min_length=MIN_PASSWORD_LENGTH, max_length=MAX_PASSWORD_BYTES
-    )
-
-    @field_validator("initial_password")
-    @classmethod
-    def _policy(cls, v):
-        if v:
-            errors = password_policy_errors(v)
-            if errors:
-                raise ValueError(" ".join(errors))
-        return v
 
 
 # --------------------------------------------------------------- students
@@ -65,15 +44,17 @@ class StudentBase(BaseModel):
         return v
 
 
-class StudentCreate(StudentBase, InitialPassword):
+class StudentCreate(StudentBase):
     """Create a student and the portal account that goes with it.
 
-    Email is optional: when it is omitted one is derived from the student
-    number, so a learner without a mailbox still gets an account they can sign
-    in to with their student number.
+    Email is required. It is the address the learner gave the school office,
+    and it is where their temporary password is sent - so an account created
+    without one would be an account nobody could ever sign in to. A derived
+    `@STUDENT_EMAIL_DOMAIN` identifier is no longer accepted at creation for
+    exactly that reason.
     """
 
-    email: Optional[EmailStr] = None
+    email: EmailStr
 
     # Subjects to enrol the student in, for the given (or active) year.
     subject_ids: List[int] = Field(default_factory=list)
@@ -129,9 +110,14 @@ class StudentDetail(StudentRead):
 
 
 class StudentCreated(StudentDetail):
-    """Returned once on creation, carrying the password to hand over."""
+    """Returned on creation, carrying the delivery outcome - not the password.
 
-    initial_password: Optional[str] = None
+    The temporary password is emailed to the student and is never included in
+    an API response. If delivery failed, the administrator resends, which
+    issues a new password rather than disclosing the one already set.
+    """
+
+    delivery: CredentialDelivery
 
 
 # --------------------------------------------------------------- teachers
@@ -155,7 +141,7 @@ class TeacherBase(BaseModel):
         return v.strip()
 
 
-class TeacherCreate(TeacherBase, InitialPassword):
+class TeacherCreate(TeacherBase):
     email: EmailStr
     subject_ids: List[int] = Field(default_factory=list)
     academic_year_id: Optional[int] = None
@@ -202,7 +188,9 @@ class TeacherDetail(TeacherRead):
 
 
 class TeacherCreated(TeacherDetail):
-    initial_password: Optional[str] = None
+    """As StudentCreated: the delivery outcome, never the password."""
+
+    delivery: CredentialDelivery
 
 
 # ------------------------------------------------- enrollment / assignment

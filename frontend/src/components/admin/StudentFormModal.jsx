@@ -1,5 +1,6 @@
 import { useState } from 'react'
 
+import CredentialDeliveryPanel from '@/components/admin/CredentialDeliveryPanel'
 import { Alert, Button, Input, Modal, Select, SubjectPicker } from '@/components/ui'
 import { studentService } from '@/services/adminService'
 import { getErrorMessage } from '@/services/apiClient'
@@ -51,6 +52,16 @@ export function StudentFormModal({ open, mode, student, classes, subjects, onClo
     if (!form.student_number.trim()) errors.student_number = 'A student number is required.'
     if (!form.first_name.trim()) errors.first_name = 'Enter a first name.'
     if (!form.last_name.trim()) errors.last_name = 'Enter a last name.'
+    // Required on creation: it is where the temporary password is sent, so an
+    // account without one could never be signed in to. On edit it is already
+    // set, and a blank field means "leave it alone".
+    if (!isEdit) {
+      if (!form.email.trim()) {
+        errors.email = "Enter the email address the student gave you."
+      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+        errors.email = 'Enter a valid email address.'
+      }
+    }
     if (form.date_of_birth && form.date_of_birth > new Date().toISOString().slice(0, 10)) {
       errors.date_of_birth = 'Date of birth cannot be in the future.'
     }
@@ -73,7 +84,7 @@ export function StudentFormModal({ open, mode, student, classes, subjects, onClo
       gender: form.gender || null,
       class_id: form.class_id ? Number(form.class_id) : null,
     }
-    if (form.email.trim()) payload.email = form.email.trim()
+    if (form.email.trim()) payload.email = form.email.trim().toLowerCase()
 
     setSaving(true)
     try {
@@ -85,8 +96,8 @@ export function StudentFormModal({ open, mode, student, classes, subjects, onClo
           ...payload,
           subject_ids: selectedSubjects,
         })
-        // The initial password is shown once and never retrievable again, so
-        // the dialog stays open until the office has copied it.
+        // The dialog stays open on the delivery outcome: if the email did not
+        // arrive, the administrator can resend before leaving this screen.
         setCreated(result)
       }
     } catch (err) {
@@ -97,45 +108,24 @@ export function StudentFormModal({ open, mode, student, classes, subjects, onClo
   }
 
   if (created) {
+    const done = () => onSaved(`${created.full_name} has been added.`)
     return (
       <Modal
         open={open}
-        onClose={() => onSaved(`${created.full_name} has been added.`)}
+        onClose={done}
         title="Student added"
         description={`${created.full_name} · ${created.student_number}`}
         footer={
-          <Button onClick={() => onSaved(`${created.full_name} has been added.`)} icon="check">
+          <Button onClick={done} icon="check">
             Done
           </Button>
         }
       >
-        <Alert tone="warning" title="Copy these sign-in details now">
-          This password is shown once and cannot be retrieved later. If it is lost, issue
-          a new one from the account settings.
-        </Alert>
-
-        <dl className="border-ink-200 mt-4 divide-y divide-ink-100 rounded-lg border">
-          <div className="flex items-center justify-between gap-4 px-4 py-3">
-            <dt className="text-ink-500 text-sm">Username</dt>
-            <dd className="text-ink-900 font-mono text-sm font-semibold">
-              {created.student_number.toLowerCase()}
-            </dd>
-          </div>
-          <div className="flex items-center justify-between gap-4 px-4 py-3">
-            <dt className="text-ink-500 text-sm">Email</dt>
-            <dd className="text-ink-900 font-mono text-sm">{created.email}</dd>
-          </div>
-          <div className="flex items-center justify-between gap-4 px-4 py-3">
-            <dt className="text-ink-500 text-sm">Temporary password</dt>
-            <dd className="text-brand-800 bg-brand-50 rounded px-2 py-1 font-mono text-sm font-semibold">
-              {created.initial_password}
-            </dd>
-          </div>
-        </dl>
-
-        <p className="text-ink-500 mt-4 text-sm">
-          They will be asked to set their own password from Settings after signing in.
-        </p>
+        <CredentialDeliveryPanel
+          delivery={created.delivery}
+          accountType="Student"
+          onResend={() => studentService.resendCredentials(created.id)}
+        />
       </Modal>
     )
   }
@@ -239,14 +229,20 @@ export function StudentFormModal({ open, mode, student, classes, subjects, onClo
           label="Email address"
           name="email"
           type="email"
+          icon="envelope"
+          autoCapitalize="none"
+          spellCheck="false"
+          placeholder="student@example.com"
           value={form.email}
           onChange={handleChange}
+          error={fieldErrors.email}
           hint={
             isEdit
               ? 'Used to sign in.'
-              : 'Optional. Left blank, one is derived from the student number.'
+              : 'The address the student gave you. Their temporary password is sent here.'
           }
           disabled={saving}
+          required={!isEdit}
         />
 
         {!isEdit && (

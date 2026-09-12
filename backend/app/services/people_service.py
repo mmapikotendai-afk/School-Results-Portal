@@ -1,13 +1,10 @@
 """Student and teacher management, including enrollment and assignment."""
 
-import re
-import secrets
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
-from app.config import settings
 from app.models.assignment import TeacherSubject
 from app.models.enrollment import StudentSubject
 from app.models.enums import EnrollmentStatus, UserRole
@@ -23,30 +20,11 @@ from app.schemas.people import (
     TeacherUpdate,
 )
 from app.services.academic_service import AcademicService, utcnow
-from app.utils.security import hash_password
+from app.utils.security import generate_temporary_password, hash_password
 
-# Sign-in domain for learners with no mailbox of their own. Configurable, so a
-# school can point it at a subdomain it controls. Reserved names such as .local
-# and .invalid are rejected by email validation and must not be used.
-STUDENT_EMAIL_DOMAIN = settings.STUDENT_EMAIL_DOMAIN
-
-
-def generate_password(length: int = 10) -> str:
-    """A readable one-time password for the office to hand over.
-
-    Ambiguous characters are excluded so a password read off a printed slip
-    cannot be mistyped as 0 for O or 1 for l.
-    """
-    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
-    digits = "23456789"
-    body = "".join(secrets.choice(alphabet) for _ in range(length - 2))
-    return body + "".join(secrets.choice(digits) for _ in range(2))
-
-
-def _slug(value: str) -> str:
-    """Reduce an identifier to something safe for the local part of an email."""
-    cleaned = re.sub(r"[^a-z0-9]+", ".", value.lower()).strip(".")
-    return cleaned or "student"
+# Kept as a module-level alias: password generation now lives beside hashing
+# and the password policy, so the two cannot drift apart.
+generate_password = generate_temporary_password
 
 
 class EnrollmentSync:
@@ -132,7 +110,9 @@ class StudentService:
     ) -> Tuple[Optional[Student], Optional[str], Optional[str]]:
         """Create a student and their portal account.
 
-        Returns (student, initial_password, error).
+        Returns (student, temporary_password, error). The password is returned
+        to the caller in memory so it can be emailed; it is stored only as a
+        bcrypt hash and must not be placed in an API response.
         """
         if self.get_by_number(payload.student_number):
             return None, None, f"Student number {payload.student_number} is already in use."
@@ -142,11 +122,9 @@ class StudentService:
         ).first():
             return None, None, "That class does not exist."
 
-        email = (
-            str(payload.email).strip().lower()
-            if payload.email
-            else f"{_slug(payload.student_number)}@{STUDENT_EMAIL_DOMAIN}"
-        )
+        # Required by the schema, so there is no derived-address fallback here
+        # any more: every new student has a real mailbox to be emailed at.
+        email = str(payload.email).strip().lower()
         if self.db.query(User.id).filter(User.email == email).first():
             return None, None, f"An account already exists for {email}."
 
@@ -156,7 +134,7 @@ class StudentService:
         if self.db.query(User.id).filter(User.username == username).first():
             username = None
 
-        password = payload.initial_password or generate_password()
+        password = generate_temporary_password()
 
         user = User(
             email=email,
@@ -373,7 +351,11 @@ class TeacherService:
     def create(
         self, payload: TeacherCreate
     ) -> Tuple[Optional[Teacher], Optional[str], Optional[str]]:
-        """Returns (teacher, initial_password, error)."""
+        """Create a teacher and their portal account.
+
+        Returns (teacher, temporary_password, error). As with students, the
+        plaintext is for the email service only and never for a response body.
+        """
         number = payload.employee_number
         if self.db.query(Teacher.id).filter(Teacher.employee_number == number).first():
             return None, None, f"Employee number {number} is already in use."
@@ -382,7 +364,7 @@ class TeacherService:
         if self.db.query(User.id).filter(User.email == email).first():
             return None, None, f"An account already exists for {email}."
 
-        password = payload.initial_password or generate_password()
+        password = generate_temporary_password()
 
         user = User(
             email=email,

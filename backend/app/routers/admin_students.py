@@ -5,6 +5,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
 from app.dependencies.auth import require_admin
 from app.models.enums import EnrollmentStatus
@@ -21,9 +22,12 @@ from app.schemas.people import (
     StudentUpdate,
     SubjectSelection,
 )
+from app.schemas.user import CredentialDelivery
 from app.services.academic_service import AcademicService
 from app.services.account_service import AccountService
 from app.services.people_service import StudentService
+from app.services import email_service
+from app.services.provisioning_service import ProvisioningService
 
 router = APIRouter(
     prefix="/admin/students",
@@ -82,6 +86,28 @@ def _get(db: Session, student_id: int) -> Student:
     return student
 
 
+def _delivery(user, result) -> CredentialDelivery:
+    """Turn a delivery attempt into the shape the admin UI reads.
+
+    Carries the address and the outcome. It never carries the password, and
+    there is no field it could be put in.
+    """
+    return CredentialDelivery(
+        email=user.email,
+        status=result.status,
+        sent=result.sent,
+        sent_at=user.email_sent_at,
+        detail=result.detail,
+        can_resend=_has_real_mailbox(user.email),
+    )
+
+
+def _has_real_mailbox(email: str) -> bool:
+    """False for a derived sign-in identifier, which routes nowhere."""
+    domain = (settings.STUDENT_EMAIL_DOMAIN or "").strip().lower()
+    return bool(domain) and not email.strip().lower().endswith(f"@{domain}")
+
+
 @router.get("", response_model=Page[StudentRead], summary="Search students")
 def list_students(
     search: Optional[str] = Query(default=None, description="Name, student number or email"),
@@ -127,15 +153,54 @@ def create_student(payload: StudentCreate, db: Session = Depends(get_db)) -> Stu
     if not valid:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=problem)
 
+    # Checked before anything is written: an address that cannot receive mail
+    # would produce a student nobody can ever sign in as, because the only
+    # copy of the password goes into the message.
+    undeliverable = email_service.verify_deliverable(str(payload.email))
+    if undeliverable:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"That email address cannot receive mail. {undeliverable}",
+        )
+
     student, password, error = service.create(payload)
     if error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=error)
 
+    kept, result = ProvisioningService(db).deliver_or_discard(student.user, password)
+    del password
+    if not kept:
+        # The account was removed again, so the administrator can correct the
+        # address and re-submit rather than being left with a stranded row.
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=(
+                "The student was not added: their credentials could not be emailed. "
+                f"{result.error or result.detail}"
+            ),
+        )
+
     year_id = service.academic.resolve_year_id(payload.academic_year_id)
     detail = _to_detail(db, student, year_id)
-    # Shown once so the office can pass the credentials on; it is never stored
-    # in plaintext and cannot be retrieved again.
-    return StudentCreated(**detail.model_dump(), initial_password=password)
+    return StudentCreated(**detail.model_dump(), delivery=_delivery(student.user, result))
+
+
+@router.post(
+    "/{student_id}/resend-credentials",
+    response_model=CredentialDelivery,
+    summary="Resend login credentials to a student",
+)
+def resend_student_credentials(
+    student_id: int, db: Session = Depends(get_db)
+) -> CredentialDelivery:
+    """Issue a fresh temporary password and email it.
+
+    The previous password stops working immediately, and any session opened
+    with it is ended.
+    """
+    student = _get(db, student_id)
+    result = ProvisioningService(db).reissue_credentials(student.user)
+    return _delivery(student.user, result)
 
 
 @router.get("/{student_id}", response_model=StudentDetail, summary="View a student")

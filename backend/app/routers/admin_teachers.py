@@ -5,6 +5,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
 from app.dependencies.auth import require_admin
 from app.models.teacher import Teacher
@@ -20,9 +21,12 @@ from app.schemas.people import (
     TeacherRead,
     TeacherUpdate,
 )
+from app.schemas.user import CredentialDelivery
 from app.services.academic_service import AcademicService
 from app.services.account_service import AccountService
 from app.services.people_service import StudentService, TeacherService
+from app.services import email_service
+from app.services.provisioning_service import ProvisioningService
 
 router = APIRouter(
     prefix="/admin/teachers",
@@ -63,6 +67,28 @@ def _to_detail(db: Session, teacher: Teacher, year_id: Optional[int]) -> Teacher
         subjects=sorted(subjects, key=lambda s: s.name),
         academic_year_id=year_id,
     )
+
+
+def _delivery(user, result) -> CredentialDelivery:
+    """Turn a delivery attempt into the shape the admin UI reads.
+
+    Carries the address and the outcome. It never carries the password, and
+    there is no field it could be put in.
+    """
+    return CredentialDelivery(
+        email=user.email,
+        status=result.status,
+        sent=result.sent,
+        sent_at=user.email_sent_at,
+        detail=result.detail,
+        can_resend=_has_real_mailbox(user.email),
+    )
+
+
+def _has_real_mailbox(email: str) -> bool:
+    """False for a derived sign-in identifier, which routes nowhere."""
+    domain = (settings.STUDENT_EMAIL_DOMAIN or "").strip().lower()
+    return bool(domain) and not email.strip().lower().endswith(f"@{domain}")
 
 
 def _get(db: Session, teacher_id: int) -> Teacher:
@@ -113,13 +139,55 @@ def create_teacher(payload: TeacherCreate, db: Session = Depends(get_db)) -> Tea
     if not valid:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=problem)
 
+    # Checked before anything is written: an address that cannot receive mail
+    # would produce a teacher nobody can ever sign in as, because the only
+    # copy of the password goes into the message.
+    undeliverable = email_service.verify_deliverable(str(payload.email))
+    if undeliverable:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"That email address cannot receive mail. {undeliverable}",
+        )
+
     teacher, password, error = service.create(payload)
     if error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=error)
 
+    kept, result = ProvisioningService(db).deliver_or_discard(teacher.user, password)
+    del password
+    if not kept:
+        # The account was removed again, so the administrator can correct the
+        # address and re-submit rather than being left with a stranded row.
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=(
+                "The teacher was not added: their credentials could not be emailed. "
+                f"{result.error or result.detail}"
+            ),
+        )
+
     year_id = service.academic.resolve_year_id(payload.academic_year_id)
     detail = _to_detail(db, teacher, year_id)
-    return TeacherCreated(**detail.model_dump(), initial_password=password)
+    return TeacherCreated(**detail.model_dump(), delivery=_delivery(teacher.user, result))
+
+
+@router.post(
+    "/{teacher_id}/resend-credentials",
+    response_model=CredentialDelivery,
+    summary="Resend login credentials to a teacher",
+)
+def resend_teacher_credentials(
+    teacher_id: int, db: Session = Depends(get_db)
+) -> CredentialDelivery:
+    """Issue a fresh temporary password and email it.
+
+    Not a re-send of the original: that password is not recoverable, by design.
+    A new one is generated, which invalidates the old one and ends every
+    session the account currently holds.
+    """
+    teacher = _get(db, teacher_id)
+    result = ProvisioningService(db).reissue_credentials(teacher.user)
+    return _delivery(teacher.user, result)
 
 
 @router.get("/{teacher_id}", response_model=TeacherDetail, summary="View a teacher")

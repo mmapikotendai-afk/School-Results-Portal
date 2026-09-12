@@ -51,8 +51,11 @@ export function PortalLayout() {
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
+        {/* The crest rule: navy with a vermilion head. It is the one mark
+            that appears on every authenticated screen. */}
+        <div className="masthead-rule" aria-hidden="true" />
         <Topbar onOpenMenu={() => setMenuOpen(true)} />
-        <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
+        <main className="flex-1 px-4 py-8 sm:px-6 lg:px-10">
           <div className="mx-auto w-full max-w-7xl">
             <Outlet />
           </div>

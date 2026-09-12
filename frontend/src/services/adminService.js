@@ -30,6 +30,15 @@ export const studentService = {
         academic_year_id: academicYearId ?? null,
       }),
     ),
+  /**
+   * Issue a fresh temporary password and email it.
+   *
+   * Not a re-send of the original - that value is not recoverable. The server
+   * generates a new one, which invalidates the old password and ends every
+   * session the account holds. No password is returned here.
+   */
+  resendCredentials: (id) =>
+    unwrap(apiClient.post(`/admin/students/${id}/resend-credentials`)),
 }
 
 export const teacherService = {
@@ -46,6 +55,9 @@ export const teacherService = {
         academic_year_id: academicYearId ?? null,
       }),
     ),
+  /** As studentService.resendCredentials: a new password, emailed, never returned. */
+  resendCredentials: (id) =>
+    unwrap(apiClient.post(`/admin/teachers/${id}/resend-credentials`)),
 }
 
 export const subjectService = {

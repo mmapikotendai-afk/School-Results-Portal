@@ -56,3 +56,7 @@ htmlcov/
 # installation, not to the source tree; the application recreates the folder.
 backend/uploads/
 uploads/
+
+# Third-party agent skills vendored from github.com/ConardLi/garden-skills.
+# Active locally, deliberately not part of this project's history.
+.claude/skills/

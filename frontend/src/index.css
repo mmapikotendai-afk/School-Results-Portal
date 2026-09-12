@@ -1,78 +1,122 @@
 @import 'tailwindcss';
 
 /* ==========================================================================
-   Design system
-   Single source of truth for colour, type and elevation. Tailwind v4 turns
-   every token below into a utility (e.g. --color-brand-600 -> bg-brand-600).
+   Design system — "Heraldic Swiss"
+   Single source of truth for colour, type and rule weight.
+
+   Every brand value below was sampled from the school crest (public/logo.png)
+   rather than chosen: navy #001870 is 27% of the crest by pixel area and
+   vermilion #E00010 is 14%. The gold that this system previously called an
+   accent appears nowhere in the crest and has been retired.
+
+   The structural language is Swiss/Vignelli: a strict grid, drawn rules
+   instead of shadows, radius 0, and exactly one accent. The register suits
+   the product — this portal issues examination results and report cards, so
+   it should read as an official records office, not a SaaS dashboard.
+
+   Tailwind v4 turns every token below into a utility
+   (e.g. --color-brand-800 -> bg-brand-800), so changing a value here
+   restyles all 27 pages without touching them.
    ========================================================================== */
 @theme {
-  /* Typeface: Inter for the interface, Lora for school-branded headings
-     (the masthead and report cards). */
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-serif: 'Lora', ui-serif, Georgia, 'Times New Roman', serif;
+  /* Typeface
+     Public Sans is the US Web Design System face, drawn for official
+     government records interfaces — the right register for a marksheet, and
+     a real grotesque rather than the Inter default.
+     Spectral carries the ceremonial register: the masthead, report cards and
+     the crest motto, which is itself set in serif caps. */
+  --font-sans: 'Public Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-serif: 'Spectral', ui-serif, Georgia, 'Times New Roman', serif;
 
-  /* Brand - a deep academic navy, used for chrome, primary actions and print. */
-  --color-brand-50: #eef4ff;
-  --color-brand-100: #dae5ff;
-  --color-brand-200: #bdd1ff;
-  --color-brand-300: #90b3ff;
-  --color-brand-400: #5c88fb;
-  --color-brand-500: #375ff5;
-  --color-brand-600: #213fe8;
-  --color-brand-700: #1a30d4;
-  --color-brand-800: #1c2aac;
-  --color-brand-900: #142058;
-  --color-brand-950: #0d1538;
+  /* Brand — the crest navy. 800 is the sampled value; the ramp is derived
+     from it so chrome, primary actions and print all descend from one hue. */
+  --color-brand-50: #eef0f9;
+  --color-brand-100: #d6dbf0;
+  --color-brand-200: #b3bce3;
+  --color-brand-300: #8a97d4;
+  --color-brand-400: #5c6cbf;
+  --color-brand-500: #3547a8;
+  --color-brand-600: #1f3092;
+  --color-brand-700: #0f1f7e;
+  --color-brand-800: #001870; /* sampled from the crest */
+  --color-brand-900: #001152;
+  --color-brand-950: #000b33;
 
-  /* Accent - a restrained scholastic gold for crests, seals and highlights. */
-  --color-accent-50: #fffaeb;
-  --color-accent-100: #fef0c7;
-  --color-accent-200: #fedf89;
-  --color-accent-300: #fec84b;
-  --color-accent-400: #fdb022;
-  --color-accent-500: #f79009;
-  --color-accent-600: #dc6803;
-  --color-accent-700: #b54708;
-  --color-accent-800: #93370d;
-  --color-accent-900: #7a2e0e;
+  /* Accent — the crest vermilion, and the only accent in the system.
+     Reserved for institutional marks: the masthead rule, the active
+     navigation marker, the seal. Deliberately NOT used for failure states;
+     see the danger ramp below. */
+  --color-accent-50: #fef0f1;
+  --color-accent-100: #fbd9db;
+  --color-accent-200: #f6a9ae;
+  --color-accent-300: #ee5a63;
+  --color-accent-400: #e81b28;
+  --color-accent-500: #e00010; /* sampled from the crest */
+  --color-accent-600: #c4000e;
+  --color-accent-700: #a3000c;
+  --color-accent-800: #7a0b1e;
+  --color-accent-900: #5c0714;
 
-  /* Semantic - result states: published, pending, overdue, rejected. */
-  --color-success-50: #ecfdf3;
-  --color-success-100: #d1fadf;
-  --color-success-500: #12b76a;
-  --color-success-600: #039855;
-  --color-success-700: #027a48;
+  /* Semantic — result states: published, pending, overdue, rejected.
+     Muted against the brand hues on purpose. A grade is information, not
+     decoration, so these read as ink colours rather than signal lights. */
+  --color-success-50: #ebf5ef;
+  --color-success-100: #cfe7d9;
+  --color-success-500: #0e7d45;
+  --color-success-600: #0b6b3a;
+  --color-success-700: #08542e;
 
-  --color-warning-50: #fffaeb;
-  --color-warning-100: #fef0c7;
-  --color-warning-500: #f79009;
-  --color-warning-600: #dc6803;
-  --color-warning-700: #b54708;
+  --color-warning-50: #faf3e3;
+  --color-warning-100: #f0e2bf;
+  --color-warning-500: #a66d00;
+  --color-warning-600: #8a5a00;
+  --color-warning-700: #6e4700;
 
-  --color-danger-50: #fef3f2;
-  --color-danger-100: #fee4e2;
-  --color-danger-500: #f04438;
-  --color-danger-600: #d92d20;
-  --color-danger-700: #b42318;
+  /* Danger is garnet, not the crest vermilion. In a system that publishes
+     examination results the brand accent and the failure signal would
+     otherwise be the same red, and a failing grade would read as branding.
+     Garnet is dark enough that the two never trade places. */
+  --color-danger-50: #fbeef0;
+  --color-danger-100: #f5d6db;
+  --color-danger-500: #9e1229;
+  --color-danger-600: #7a0b1e;
+  --color-danger-700: #5c0714;
 
-  /* Neutrals */
-  --color-ink-50: #f8fafc;
-  --color-ink-100: #f1f5f9;
-  --color-ink-200: #e2e8f0;
-  --color-ink-300: #cbd5e1;
-  --color-ink-400: #94a3b8;
-  --color-ink-500: #64748b;
-  --color-ink-600: #475569;
-  --color-ink-700: #334155;
-  --color-ink-800: #1e293b;
-  --color-ink-900: #0f172a;
+  /* Neutrals — warm paper greys rather than the cool slate of a dashboard.
+     200 is the rule weight used for every drawn line in the interface. */
+  --color-ink-50: #fafaf8;
+  --color-ink-100: #f2f2ee;
+  --color-ink-200: #d8d8d4;
+  --color-ink-300: #bfbfba;
+  --color-ink-400: #8a8a8a;
+  --color-ink-500: #5c5c5c;
+  --color-ink-600: #454545;
+  --color-ink-700: #2e2e2e;
+  --color-ink-800: #1a1a1a;
+  --color-ink-900: #0a0a0a;
 
-  /* Elevation */
-  --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.06);
-  --shadow-raised: 0 4px 6px -1px rgb(15 23 42 / 0.07), 0 2px 4px -2px rgb(15 23 42 / 0.05);
-  --shadow-overlay: 0 20px 25px -5px rgb(15 23 42 / 0.12), 0 8px 10px -6px rgb(15 23 42 / 0.08);
+  /* Radius: zero, throughout. Swiss surfaces are cut, not moulded.
+     Overriding the scale here flattens every existing rounded-* utility in
+     the codebase at once. --radius-full is deliberately left alone so
+     genuinely circular things (the spinner) stay circular. */
+  --radius-xs: 0;
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+  --radius-xl: 0;
+  --radius-2xl: 0;
+  --radius-3xl: 0;
+  --radius-4xl: 0;
 
-  /* Motion */
+  /* Elevation is drawn, not blurred. Panels and tables sit on the page and
+     are separated by rules, the way a printed form separates its fields.
+     Only a modal genuinely floats above the document, so it alone keeps a
+     shadow. */
+  --shadow-card: none;
+  --shadow-raised: none;
+  --shadow-overlay: 0 24px 48px -12px rgb(0 0 0 / 0.28);
+
+  /* Motion: state feedback only. Nothing animates in or out. */
   --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -85,25 +129,63 @@
     @apply bg-ink-50 text-ink-800 font-sans antialiased;
   }
 
-  /* A single, consistent focus ring across every interactive element. */
+  /* A single, consistent focus ring across every interactive element.
+     Square, to match the surfaces it sits on. */
   :where(a, button, input, select, textarea, [tabindex]):focus-visible {
-    @apply outline-brand-500 outline-2 outline-offset-2;
+    @apply outline-brand-800 outline-2 outline-offset-1;
   }
 
   h1, h2, h3, h4 {
     @apply text-ink-900 font-semibold tracking-tight;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  /* Marks, percentages, student numbers and dates all stack in columns, so
+     figures are tabular everywhere by default. */
+  table, .tabular {
+    font-variant-numeric: tabular-nums lining-nums;
   }
 }
 
 @layer components {
-  /* Shared surface for panels, tables and cards. */
+  /* Shared surface for panels, tables and cards. A rule and a ground shift,
+     with no radius and no shadow. */
   .surface {
-    @apply bg-white border-ink-200 shadow-card rounded-xl border;
+    @apply border-ink-200 border bg-white;
+  }
+
+  /* The signature mark: a navy rule with a vermilion segment at its head,
+     echoing the crest. Sits at the very top of the page chrome. */
+  .masthead-rule {
+    @apply bg-brand-800 flex h-1 w-full shrink-0;
+  }
+
+  .masthead-rule::before {
+    content: '';
+    @apply bg-accent-500 w-24;
+  }
+
+  /* Small letterspaced label used for field labels, table headers and
+     section eyebrows. The workhorse of the typographic system. */
+  .rule-label {
+    @apply text-ink-500 text-[11px] font-bold tracking-[0.12em] uppercase;
+  }
+
+  /* Status as letterspaced type on a rule, rather than a filled pill.
+     Colour comes from a text-* utility on the element itself, and the rule
+     inherits it, so a status stays legible in print and in greyscale. */
+  .status-chip {
+    @apply inline-flex items-center border-b-2 border-current pt-[3px] pb-[4px];
+    @apply text-[11px] font-bold tracking-[0.1em] uppercase;
   }
 
   /* Vertical navigation item used by the portal sidebar. */
   .nav-item {
-    @apply flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-150;
+    @apply flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-colors duration-150;
   }
 
   /* Scrolls, but without drawing a scrollbar.

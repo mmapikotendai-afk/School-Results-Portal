@@ -36,6 +36,7 @@ export function TeachersPage() {
   const [formState, setFormState] = useState(null)
   const [subjectsFor, setSubjectsFor] = useState(null)
   const [confirming, setConfirming] = useState(null)
+  const [resending, setResending] = useState(null)
   const { toast, show, clear } = useToast()
 
   const query = useMemo(
@@ -67,6 +68,24 @@ export function TeachersPage() {
       show(getErrorMessage(err), 'danger')
       throw err
     }
+  }
+
+
+  /**
+   * Issue a new temporary password and email it.
+   *
+   * The server generates the password; nothing readable comes back here. The
+   * old password stops working at once, so this is a real reset rather than a
+   * repeat of the original message.
+   */
+  async function resendCredentials(row) {
+    const result = await teacherService.resendCredentials(row.id)
+    show(
+      result.sent
+        ? `New sign-in details sent to ${result.email}.`
+        : `Could not email ${result.email}. ${result.detail}`,
+      result.sent ? 'success' : 'danger',
+    )
   }
 
   const columns = [
@@ -132,6 +151,11 @@ export function TeachersPage() {
             onClick={() => setFormState({ mode: 'edit', teacher: row })}
           />
           <RowAction icon="table-list" label="Assign subjects" onClick={() => setSubjectsFor(row)} />
+          <RowAction
+            icon="paper-plane"
+            label="Resend login credentials"
+            onClick={() => setResending(row)}
+          />
           <RowAction
             icon={row.is_active ? 'ban' : 'circle-check'}
             label={row.is_active ? 'Deactivate' : 'Reactivate'}
@@ -241,6 +265,21 @@ export function TeachersPage() {
           }}
         />
       )}
+
+      <ConfirmDialog
+        open={Boolean(resending)}
+        onClose={() => setResending(null)}
+        onConfirm={() => resendCredentials(resending)}
+        title="Resend login credentials?"
+        message={`A new temporary password will be generated and emailed to ${resending?.email}.`}
+        detail={
+          `This replaces the password ${resending?.full_name} has now. Their current ` +
+          `password stops working immediately and they will be signed out of any ` +
+          `session. Nobody sees the new password but them.`
+        }
+        confirmLabel="Generate and send"
+        icon="paper-plane"
+      />
 
       <ConfirmDialog
         open={Boolean(confirming)}

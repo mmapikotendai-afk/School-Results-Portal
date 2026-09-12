@@ -13,7 +13,7 @@ from app.models.student import Student
 from app.models.teacher import Teacher
 from app.models.user import User
 from app.schemas.user import AccountCreate
-from app.utils.security import hash_password
+from app.utils.security import generate_temporary_password, hash_password
 
 
 class AccountService:
@@ -75,21 +75,26 @@ class AccountService:
 
         return None
 
-    def create_account(self, payload: AccountCreate) -> Tuple[Optional[User], Optional[str]]:
+    def create_account(
+        self, payload: AccountCreate
+    ) -> Tuple[Optional[User], Optional[str], Optional[str]]:
         """Create a user and, for teachers and students, their profile row.
 
-        The account starts flagged must_change_password, so the holder replaces
-        the administrator-issued password from Settings, Security.
+        Returns (user, temporary_password, error). The password is generated
+        here, returned in memory so the caller can email it, and stored only as
+        a bcrypt hash. The account starts flagged must_change_password.
         """
         problem = self.validate_new_account(payload)
         if problem:
-            return None, problem
+            return None, None, problem
+
+        password = generate_temporary_password()
 
         user = User(
             email=payload.email.strip().lower(),
             username=payload.username,
             full_name=payload.full_name.strip(),
-            password_hash=hash_password(payload.password),
+            password_hash=hash_password(password),
             role=payload.role,
             is_active=True,
             must_change_password=True,
@@ -112,7 +117,7 @@ class AccountService:
         self.db.add(user)
         self.db.commit()
         self.db.refresh(user)
-        return user, None
+        return user, password, None
 
     def set_active(self, user: User, is_active: bool) -> User:
         """Activate or deactivate an account.
@@ -127,11 +132,6 @@ class AccountService:
         self.db.refresh(user)
         return user
 
-    def reset_password(self, user: User, new_password: str) -> User:
-        """Issue a new password and force the holder to change it on next use."""
-        user.password_hash = hash_password(new_password)
-        user.must_change_password = True
-        user.token_version += 1
-        self.db.commit()
-        self.db.refresh(user)
-        return user
+    # Password resets are handled by ProvisioningService.reissue_credentials,
+    # which generates the new password rather than accepting one. Nothing here
+    # takes a plaintext password from a caller any more.

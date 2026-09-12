@@ -1,17 +1,30 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 
-/** Compact metric tile used across the three role dashboards. */
-export function StatTile({ icon, label, value, hint }) {
+import { cx } from '@/utils/format'
+
+/**
+ * Compact metric tile used across the three role dashboards.
+ *
+ * The tinted icon chip that used to sit opposite the label has gone. A
+ * figure set at 44px is already the loudest thing in the tile — an ornament
+ * beside it competes for the eye without helping anyone find the number
+ * faster. The icon stays, at label weight, as a quiet category marker.
+ */
+export function StatTile({ icon, label, value, hint, className }) {
   return (
-    <div className="surface p-5">
-      <div className="flex items-start justify-between gap-3">
-        <p className="text-ink-500 text-sm font-medium">{label}</p>
-        <span className="bg-brand-50 text-brand-700 flex size-9 shrink-0 items-center justify-center rounded-lg">
-          <FontAwesomeIcon icon={icon} className="text-sm" aria-hidden="true" />
-        </span>
+    <div className={cx('surface p-6', className)}>
+      <div className="flex items-center gap-2">
+        {icon && (
+          <FontAwesomeIcon icon={icon} className="text-ink-400 w-3 text-[11px]" aria-hidden="true" />
+        )}
+        <p className="rule-label">{label}</p>
       </div>
-      <p className="text-ink-900 mt-3 text-3xl font-semibold tracking-tight">{value}</p>
-      {hint && <p className="text-ink-400 mt-1 text-xs">{hint}</p>}
+
+      <p className="text-ink-900 tabular mt-3 text-[44px] leading-none font-bold tracking-tight">
+        {value}
+      </p>
+
+      {hint && <p className="text-ink-400 mt-2 text-xs">{hint}</p>}
     </div>
   )
 }

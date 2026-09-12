@@ -9,8 +9,7 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
-from app.models.enums import UserRole
-from app.utils.security import MAX_PASSWORD_BYTES, MIN_PASSWORD_LENGTH, password_policy_errors
+from app.models.enums import EmailDeliveryStatus, UserRole
 
 
 class UserBase(BaseModel):
@@ -22,12 +21,13 @@ class UserBase(BaseModel):
 class AccountCreate(UserBase):
     """Administrator-only account provisioning.
 
-    An initial password is set by the administrator and the account is flagged
-    must_change_password, so the holder replaces it from Settings > Security.
+    There is no password field. A temporary one is generated on the server,
+    hashed, and emailed to the holder; the account is flagged
+    must_change_password so it is replaced on first use. Nobody - including
+    the administrator creating the account - ever sees the stored password.
     """
 
     username: Optional[str] = Field(default=None, min_length=3, max_length=64)
-    password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=MAX_PASSWORD_BYTES)
 
     # Role-specific identifiers, required for TEACHER and STUDENT respectively.
     student_number: Optional[str] = Field(default=None, max_length=32)
@@ -35,14 +35,6 @@ class AccountCreate(UserBase):
     first_name: Optional[str] = Field(default=None, max_length=80)
     last_name: Optional[str] = Field(default=None, max_length=80)
     class_id: Optional[int] = None
-
-    @field_validator("password")
-    @classmethod
-    def _policy(cls, value: str) -> str:
-        errors = password_policy_errors(value)
-        if errors:
-            raise ValueError(" ".join(errors))
-        return value
 
     @field_validator("username")
     @classmethod
@@ -85,15 +77,31 @@ class AccountStatusUpdate(BaseModel):
     is_active: bool
 
 
-class AdminPasswordReset(BaseModel):
-    """Administrator issues a new password, for example after it is forgotten."""
+class CredentialDelivery(BaseModel):
+    """Whether the temporary password reached the account holder.
 
-    new_password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=MAX_PASSWORD_BYTES)
+    Deliberately says nothing about what the password was. The administrator
+    is told which address was used and whether it was accepted; if it was not,
+    the remedy is Resend, which issues a fresh password rather than revealing
+    the old one.
+    """
 
-    @field_validator("new_password")
-    @classmethod
-    def _policy(cls, value: str) -> str:
-        errors = password_policy_errors(value)
-        if errors:
-            raise ValueError(" ".join(errors))
-        return value
+    email: str
+    status: EmailDeliveryStatus
+    sent: bool
+    sent_at: Optional[datetime] = None
+    detail: str
+
+    # False when there is no mailbox to send to, so the UI does not offer a
+    # button that cannot work.
+    can_resend: bool = True
+
+
+class AccountProvisioned(BaseModel):
+    """Response to an administrator after an account is created or resent."""
+
+    user_id: int
+    full_name: str
+    role: UserRole
+    delivery: CredentialDelivery
+    detail: str

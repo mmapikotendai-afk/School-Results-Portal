@@ -44,26 +44,26 @@ const QUICK_ACTIONS = [
 function OutstandingTable({ rows, showDaysOverdue }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[30rem] border-collapse text-sm">
+      <table className="tabular w-full min-w-[30rem] border-collapse text-sm">
         <thead>
-          <tr className="border-ink-200 border-b">
-            <th scope="col" className="text-ink-500 px-5 py-2.5 text-left text-xs font-semibold uppercase">
+          <tr className="border-ink-900 border-b-2">
+            <th scope="col" className="rule-label px-5 py-2.5 text-left">
               Teacher
             </th>
-            <th scope="col" className="text-ink-500 px-5 py-2.5 text-left text-xs font-semibold uppercase">
+            <th scope="col" className="rule-label px-5 py-2.5 text-left">
               Subject
             </th>
-            <th scope="col" className="text-ink-500 px-5 py-2.5 text-left text-xs font-semibold uppercase">
+            <th scope="col" className="rule-label px-5 py-2.5 text-left">
               Deadline
             </th>
             {showDaysOverdue && (
-              <th scope="col" className="text-ink-500 px-5 py-2.5 text-right text-xs font-semibold uppercase">
+              <th scope="col" className="rule-label px-5 py-2.5 text-right">
                 Days overdue
               </th>
             )}
           </tr>
         </thead>
-        <tbody className="divide-ink-100 divide-y">
+        <tbody className="divide-ink-200 divide-y">
           {rows.map((row) => (
             <tr key={row.submission_id}>
               <td className="text-ink-900 px-5 py-2.5 font-medium">{row.teacher_name}</td>
@@ -113,6 +113,7 @@ export function AdminDashboard() {
   return (
     <div>
       <PageHeader
+        eyebrow="Administration"
         title={`Welcome back, ${user?.full_name?.split(' ')[0] ?? 'Administrator'}`}
         description={
           data?.active_year_name
@@ -143,7 +144,7 @@ export function AdminDashboard() {
       )}
 
       {/* OVERVIEW */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-5 sm:grid-cols-3">
         <StatTile icon="user-graduate" label="Total students" value={data?.total_students ?? 0} hint="Active accounts" />
         <StatTile icon="users" label="Total teachers" value={data?.total_teachers ?? 0} hint="Active accounts" />
         <StatTile icon="book" label="Total subjects" value={data?.total_subjects ?? 0} hint="Currently offered" />
@@ -202,7 +203,7 @@ export function AdminDashboard() {
                 <h2 className="text-base font-semibold">Publication</h2>
               </div>
               <CardBody>
-                <div className={cx('rounded-lg border px-4 py-4', style.tone)}>
+                <div className={cx('border px-4 py-4', style.tone)}>
                   <FontAwesomeIcon icon={style.icon} className="text-xl" aria-hidden="true" />
                   <p className="mt-2 font-semibold">{publication?.label}</p>
                   {publication?.detail && (
@@ -254,7 +255,7 @@ export function AdminDashboard() {
             <Card className="mt-5">
               <div className="border-danger-100 bg-danger-50 flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4">
                 <div className="flex items-center gap-3">
-                  <span className="bg-danger-100 text-danger-700 flex size-9 items-center justify-center rounded-lg">
+                  <span className="bg-danger-600 flex size-9 items-center justify-center text-white">
                     <FontAwesomeIcon icon="triangle-exclamation" aria-hidden="true" />
                   </span>
                   <div>
@@ -278,7 +279,7 @@ export function AdminDashboard() {
             <Card className="mt-5">
               <div className="border-ink-200 flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4">
                 <div className="flex items-center gap-3">
-                  <span className="bg-warning-50 text-warning-700 flex size-9 items-center justify-center rounded-lg">
+                  <span className="bg-warning-600 flex size-9 items-center justify-center text-white">
                     <FontAwesomeIcon icon="clock" aria-hidden="true" />
                   </span>
                   <div>
@@ -328,17 +329,19 @@ export function AdminDashboard() {
           <h2 className="text-base font-semibold">Quick actions</h2>
         </div>
         <CardBody>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="border-ink-200 grid grid-cols-2 gap-px border bg-ink-200 sm:grid-cols-3 lg:grid-cols-6">
             {QUICK_ACTIONS.map((action) => (
               <Link
                 key={action.label}
                 to={action.to}
-                className="border-ink-200 hover:border-brand-300 hover:bg-brand-50 flex flex-col items-center gap-2 rounded-lg border px-3 py-4 text-center transition-colors"
+                className="hover:bg-brand-50 group flex flex-col items-center gap-2.5 bg-white px-3 py-5 text-center transition-colors"
               >
-                <span className="bg-brand-50 text-brand-700 flex size-10 items-center justify-center rounded-lg">
+                <span className="text-brand-800 flex size-6 items-center justify-center">
                   <FontAwesomeIcon icon={action.icon} aria-hidden="true" />
                 </span>
-                <span className="text-ink-700 text-xs font-medium">{action.label}</span>
+                <span className="text-ink-700 group-hover:text-brand-900 text-[11px] font-semibold tracking-wide">
+                  {action.label}
+                </span>
               </Link>
             ))}
           </div>

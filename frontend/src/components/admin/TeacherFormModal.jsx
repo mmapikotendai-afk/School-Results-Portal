@@ -1,5 +1,6 @@
 import { useState } from 'react'
 
+import CredentialDeliveryPanel from '@/components/admin/CredentialDeliveryPanel'
 import { Alert, Button, Input, Modal, SubjectPicker } from '@/components/ui'
 import { teacherService } from '@/services/adminService'
 import { getErrorMessage } from '@/services/apiClient'
@@ -70,7 +71,8 @@ export function TeacherFormModal({ open, mode, teacher, subjects, onClose, onSav
           ...payload,
           subject_ids: selectedSubjects,
         })
-        // The password is shown once; the dialog stays open until it is copied.
+        // The dialog stays open on the delivery outcome: if the email did not
+        // arrive, the administrator can resend before leaving this screen.
         setCreated(result)
       }
     } catch (err) {
@@ -94,26 +96,11 @@ export function TeacherFormModal({ open, mode, teacher, subjects, onClose, onSav
           </Button>
         }
       >
-        <Alert tone="warning" title="Copy these sign-in details now">
-          This password is shown once and cannot be retrieved later.
-        </Alert>
-
-        <dl className="border-ink-200 divide-ink-100 mt-4 divide-y rounded-lg border">
-          <div className="flex items-center justify-between gap-4 px-4 py-3">
-            <dt className="text-ink-500 text-sm">Email</dt>
-            <dd className="text-ink-900 font-mono text-sm">{created.email}</dd>
-          </div>
-          <div className="flex items-center justify-between gap-4 px-4 py-3">
-            <dt className="text-ink-500 text-sm">Temporary password</dt>
-            <dd className="text-brand-800 bg-brand-50 rounded px-2 py-1 font-mono text-sm font-semibold">
-              {created.initial_password}
-            </dd>
-          </div>
-        </dl>
-
-        <p className="text-ink-500 mt-4 text-sm">
-          They will be asked to set their own password from Settings after signing in.
-        </p>
+        <CredentialDeliveryPanel
+          delivery={created.delivery}
+          accountType="Teacher"
+          onResend={() => teacherService.resendCredentials(created.id)}
+        />
       </Modal>
     )
   }

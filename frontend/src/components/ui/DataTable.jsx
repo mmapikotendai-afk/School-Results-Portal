@@ -50,15 +50,15 @@ export function DataTable({
       <div className="hidden overflow-x-auto md:block">
         {/* A floor on the width so a wide table scrolls inside its own card
             rather than squeezing columns down to one word per line. */}
-        <table className="w-full min-w-[38rem] border-collapse text-sm">
+        <table className="tabular w-full min-w-[38rem] border-collapse text-sm">
           <thead>
-            <tr className="border-ink-200 border-b">
+            <tr className="border-ink-900 border-b-2">
               {columns.map((column) => (
                 <th
                   key={column.key}
                   scope="col"
                   className={cx(
-                    'text-ink-500 px-5 py-3 text-left text-xs font-semibold tracking-wide uppercase',
+                    'rule-label border-ink-200 border-r px-5 py-3 text-left last:border-r-0',
                     column.align === 'right' && 'text-right',
                     column.className,
                   )}
@@ -68,21 +68,21 @@ export function DataTable({
               ))}
             </tr>
           </thead>
-          <tbody className="divide-ink-100 divide-y">
+          <tbody className="divide-ink-200 divide-y">
             {rows.map((row) => (
               <tr
                 key={rowKey(row)}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
                 className={cx(
                   'transition-colors',
-                  onRowClick ? 'hover:bg-ink-50 cursor-pointer' : 'hover:bg-ink-50/60',
+                  onRowClick ? 'hover:bg-brand-50 cursor-pointer' : 'hover:bg-brand-50/60',
                 )}
               >
                 {columns.map((column) => (
                   <td
                     key={column.key}
                     className={cx(
-                      'px-5 py-3 align-middle',
+                      'border-ink-200 border-r px-5 py-3 align-middle last:border-r-0',
                       column.align === 'right' && 'text-right',
                       column.cellClassName,
                     )}
@@ -97,7 +97,7 @@ export function DataTable({
       </div>
 
       {/* Narrow: one card per row, labelled. */}
-      <ul className="divide-ink-100 divide-y md:hidden">
+      <ul className="divide-ink-200 divide-y md:hidden">
         {rows.map((row) => {
           const primary = columns[primaryIndex]
           const rest = columns.filter(
@@ -109,7 +109,7 @@ export function DataTable({
             <li
               key={rowKey(row)}
               onClick={onRowClick ? () => onRowClick(row) : undefined}
-              className={cx('px-4 py-4', onRowClick && 'hover:bg-ink-50 cursor-pointer')}
+              className={cx('px-4 py-4', onRowClick && 'hover:bg-brand-50 cursor-pointer')}
             >
               <div className="text-sm font-medium">
                 {primary.render ? primary.render(row) : row[primary.key]}
@@ -119,7 +119,7 @@ export function DataTable({
                 <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2.5">
                   {rest.map((column) => (
                     <div key={column.key} className="min-w-0">
-                      <dt className="text-ink-500 text-[11px] font-semibold tracking-wide uppercase">
+                      <dt className="rule-label">
                         {column.header}
                       </dt>
                       <dd className="text-ink-800 mt-0.5 text-sm">
@@ -131,7 +131,7 @@ export function DataTable({
               )}
 
               {actions.length > 0 && (
-                <div className="border-ink-100 mt-3 flex flex-wrap items-center gap-1 border-t pt-3">
+                <div className="border-ink-200 mt-3 flex flex-wrap items-center gap-1 border-t pt-3">
                   {actions.map((column) => (
                     <div key={column.key} className="contents">
                       {column.render ? column.render(row) : row[column.key]}
@@ -159,18 +159,18 @@ function TableSkeleton({ columns = 4, rows = 5 }) {
       <span className="sr-only">Loading…</span>
 
       <div className="hidden md:block">
-        <div className="border-ink-200 flex gap-4 border-b px-5 py-3">
+        <div className="border-ink-900 flex gap-4 border-b-2 px-5 py-3">
           {Array.from({ length: columns }).map((_, i) => (
-            <div key={i} className="bg-ink-100 h-3 flex-1 animate-pulse rounded" />
+            <div key={i} className="bg-ink-100 h-3 flex-1 animate-pulse" />
           ))}
         </div>
-        <div className="divide-ink-100 divide-y">
+        <div className="divide-ink-200 divide-y">
           {Array.from({ length: rows }).map((_, r) => (
             <div key={r} className="flex items-center gap-4 px-5 py-4">
               {Array.from({ length: columns }).map((_, i) => (
                 <div
                   key={i}
-                  className="bg-ink-100 h-4 flex-1 animate-pulse rounded"
+                  className="bg-ink-100 h-4 flex-1 animate-pulse"
                   style={{ animationDelay: `${r * 60}ms` }}
                 />
               ))}
@@ -179,13 +179,13 @@ function TableSkeleton({ columns = 4, rows = 5 }) {
         </div>
       </div>
 
-      <div className="divide-ink-100 divide-y md:hidden">
+      <div className="divide-ink-200 divide-y md:hidden">
         {Array.from({ length: 3 }).map((_, r) => (
           <div key={r} className="space-y-3 px-4 py-4">
-            <div className="bg-ink-100 h-4 w-2/5 animate-pulse rounded" />
+            <div className="bg-ink-100 h-4 w-2/5 animate-pulse" />
             <div className="grid grid-cols-2 gap-3">
-              <div className="bg-ink-100 h-3 animate-pulse rounded" />
-              <div className="bg-ink-100 h-3 animate-pulse rounded" />
+              <div className="bg-ink-100 h-3 animate-pulse" />
+              <div className="bg-ink-100 h-3 animate-pulse" />
             </div>
           </div>
         ))}
@@ -198,7 +198,7 @@ function TableSkeleton({ columns = 4, rows = 5 }) {
 export function RowAction({ icon, label, onClick, tone = 'neutral' }) {
   const TONES = {
     neutral: 'text-ink-500 hover:bg-ink-100 hover:text-ink-900',
-    brand: 'text-brand-600 hover:bg-brand-50 hover:text-brand-800',
+    brand: 'text-brand-800 hover:bg-brand-50 hover:text-brand-900',
     danger: 'text-danger-600 hover:bg-danger-50 hover:text-danger-700',
   }
   return (
@@ -210,7 +210,7 @@ export function RowAction({ icon, label, onClick, tone = 'neutral' }) {
       }}
       aria-label={label}
       title={label}
-      className={cx('rounded-lg p-2 transition-colors', TONES[tone])}
+      className={cx('p-2 transition-colors duration-100', TONES[tone])}
     >
       <FontAwesomeIcon icon={icon} className="text-sm" aria-hidden="true" />
     </button>

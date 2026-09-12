@@ -256,13 +256,226 @@ expired session apart from a wrong password:
 Only a bcrypt hash is ever stored, in `users.password_hash`. Work factor is set by
 `BCRYPT_ROUNDS` (default 12, floor of 10).
 
+Nobody chooses an account's first password — not the user, and not the administrator
+creating it. It is generated on the server by `generate_temporary_password()`
+(`app/utils/security.py`) from `secrets`, hashed, emailed to the holder, and dropped. It
+is never returned by the API, never written to a log, and never stored in any form but
+the hash. See [Account provisioning](#account-provisioning).
+
 Changing a password from **Settings > Security > Change Password** requires the current
 password, a new one, and a confirmation. On success the API rehashes, replaces the hash,
 increments `token_version` — which invalidates every token the account holds, on every
-device — and the frontend signs the user out and redirects to `/login`.
+device — and the frontend signs the user out and redirects to `/login`. The temporary
+password stops working at that moment.
 
 The `must_change_password` flag on an administrator-issued account is shown **only** in
 Settings > Security. It is deliberately never a login-time notification.
+
+## Account provisioning
+
+There is no public registration. An account exists only because an administrator created
+it, through **Users > Add Teacher / Add Student**, and the credentials reach the holder
+by email.
+
+### What happens on Create Account
+
+```text
+React frontend
+      |
+FastAPI backend        validate, check the email is not already taken
+      |
+generate password      secrets, 12 chars, unambiguous alphabet
+      |
+hash (bcrypt)          the plaintext is never persisted
+      |
+MySQL                  users.password_hash, must_change_password = true
+      |
+email service          app/services/email_service.py
+      |
+the user's real inbox
+```
+
+The plaintext lives in one local variable, long enough to be hashed and rendered into
+the message. The route then deletes it. It is not in the response, the database, or the
+logs.
+
+### The address is checked before the account is created
+
+An account's first password is generated, hashed and dropped, so the only copy of it is
+the message. An address that cannot receive that message therefore produces an account
+nobody can ever sign in to — which is why the address is checked *first*, before
+anything is written:
+
+```text
+POST /admin/students
+      |
+verify the domain accepts mail        <- 400 here, nothing created
+      |
+create the student + account
+      |
+send the credentials
+      |
+  sent? ---- no ---> delete the account again, 502
+      |
+     yes
+      |
+   201 Created
+```
+
+`EMAIL_REQUIRE_DELIVERABLE` (default `true`) governs the first step. It confirms the
+address parses and that its domain publishes a mail exchanger, which rejects a domain
+that does not exist at all (`pupil@nosuchschool.zw`).
+
+Two things it deliberately does not claim to do:
+
+- **A registered look-alike domain passes.** `gmial.com` is a real domain with real MX
+  records, so it is indistinguishable from `gmail.com` by DNS. Only a human reading the
+  address back catches that one.
+- **A missing mailbox at a real domain passes.** No synchronous check can find it. The
+  receiving server accepts the message and reports the unknown recipient in a bounce
+  minutes later, long after the request returned. Catching that needs a bounce webhook.
+
+A DNS lookup that cannot be performed — no network, resolver timeout — is not treated as
+an undeliverable address. The address is allowed through and a warning is logged, because
+refusing to enrol students for the duration of a DNS outage is the worse failure.
+
+### If the send itself fails
+
+The account is **discarded**. A FAILED delivery deletes the row it was created for, the
+API returns `502`, and the administrator is told the credentials could not be emailed —
+so they can correct the address and submit again rather than being left with a stranded
+account holding a password nobody knows.
+
+`SKIPPED` is deliberately not a discard. It means no attempt was made, normally because
+delivery is switched off, which is a configuration choice rather than a bad address.
+Deleting accounts because the mail system is turned off would make the portal unusable
+offline.
+
+This reverses the portal's original behaviour, which kept the account and reported the
+failed delivery. That was the right call when a bounce was the likely failure; it stopped
+being the right call once the school required that a student who cannot be emailed is not
+enrolled at all.
+
+The outcome is recorded on the user row — `email_sent`, `email_sent_at`,
+`email_delivery_status` (`NOT_SENT` / `PENDING` / `SENT` / `FAILED` / `SKIPPED`) — so
+accounts that never received their details can be found later.
+
+`SKIPPED` means no attempt was made — normally because email delivery is switched off,
+or because a legacy account carries a derived `@STUDENT_EMAIL_DOMAIN` identifier rather
+than a real mailbox. The UI says so rather than offering a button that cannot work.
+
+### The student's email address is required
+
+A student gives the school office their own email address, and the administrator enters
+that address in the **Email** field. It is required — `StudentCreate.email` is an
+`EmailStr` with no default, and the form refuses to submit without it.
+
+It used to be optional: leaving it blank derived `<student-number>@STUDENT_EMAIL_DOMAIN`,
+which is a sign-in identifier that routes nowhere. That made sense when credentials were
+read off the screen, and stopped making sense the moment they were emailed instead — an
+account created that way is one nobody can ever sign in to, because the only copy of its
+password went to an address that does not exist. The derivation is gone from account
+creation.
+
+`STUDENT_EMAIL_DOMAIN` is still read, but only as a guard: any legacy row holding such an
+address is detected and reported as `SKIPPED` rather than being posted into a bounce.
+
+### Resending credentials
+
+**Users > (row) > Resend login credentials**, or the button on the creation dialog.
+
+A resend does not re-send the original password: that value is not recoverable, which is
+the point. A new one is generated, hashed and emailed. The previous password stops
+working the moment the hash is replaced, and `token_version` is incremented so every
+session the account holds ends immediately.
+
+### What the email contains
+
+School name, the holder's full name, account type, their student or employee number,
+their login email, the temporary password, a link to `FRONTEND_URL/login`, the
+instruction to change the password on first login, and a warning not to share the
+credentials. It is sent `multipart/alternative`, so a client that refuses HTML still
+shows a readable plain-text version. The HTML is table-based with inline styles and
+reads correctly on desktop and mobile.
+
+### First login
+
+```text
+temporary password -> authenticate -> must_change_password = true
+                   -> Settings > Security > Change Password
+                   -> new hash, must_change_password = false
+                   -> token_version bumped, session invalidated
+                   -> sign in again with the new password
+```
+
+## Email configuration
+
+All of it is environment-driven; nothing is hard-coded, and `.env` is gitignored.
+`backend/.env.example` carries the variable names and placeholders only.
+
+| Variable           | Purpose                                                       |
+| ------------------ | ------------------------------------------------------------- |
+| `EMAIL_ENABLED`    | Master switch. `false` by default — no mail is attempted       |
+| `EMAIL_PROVIDER`   | `smtp` (any transactional provider) or `file` (development)    |
+| `EMAIL_HOST`       | SMTP host, e.g. `smtp.sendgrid.net`                            |
+| `EMAIL_PORT`       | `587` for STARTTLS, `465` for implicit TLS                     |
+| `EMAIL_USERNAME`   | SMTP username (often `apikey`)                                 |
+| `EMAIL_PASSWORD`   | SMTP password or API key                                       |
+| `EMAIL_USE_TLS`    | STARTTLS. Default `true`                                       |
+| `EMAIL_USE_SSL`    | Implicit TLS on 465. Default `false`                           |
+| `EMAIL_TIMEOUT`    | Seconds to wait on the provider. Default `20`                  |
+| `EMAIL_REQUIRE_DELIVERABLE` | Refuse accounts whose address cannot receive mail. Default `true` |
+| `EMAIL_FROM`       | From address. Must be one the provider lets you send as        |
+| `EMAIL_FROM_NAME`  | Display name. Falls back to `SCHOOL_NAME`                      |
+| `EMAIL_OUTBOX_DIR` | Where `EMAIL_PROVIDER=file` writes. Default `var/outbox`       |
+| `FRONTEND_URL`     | Public origin of the React app, for the sign-in link. No slash |
+
+Put real values in `backend/.env` only. Never commit them.
+
+### Choosing a provider
+
+`EMAIL_PROVIDER=smtp` works with SendGrid, Mailgun, Postmark, Amazon SES, Resend, or a
+school's own relay — they all speak SMTP, so switching between them is a change to
+`.env`, not to the code. The provider lives entirely behind `EmailBackend` in
+`app/services/email_service.py`; nothing outside that module knows how a message is
+sent. To add a provider's HTTP API instead, implement `EmailBackend.send` and return it
+from `get_backend()`. No caller changes.
+
+### Enabling and disabling delivery
+
+```env
+EMAIL_ENABLED=false   # nothing is sent; accounts are created with status SKIPPED
+EMAIL_ENABLED=true    # messages go to the configured provider
+```
+
+With delivery off, a newly created account has a password nobody knows. That is
+intentional — turn delivery on, then use **Resend login credentials** to issue and send
+a fresh one.
+
+### Testing delivery locally
+
+The `file` provider renders the real message and writes it to disk instead of sending:
+
+```env
+EMAIL_ENABLED=true
+EMAIL_PROVIDER=file
+EMAIL_OUTBOX_DIR=var/outbox
+```
+
+```bash
+cd backend
+python -m scripts.send_test_email you@example.com
+```
+
+It prints the resolved configuration (the SMTP password only as set / not set), then
+sends. Messages land in `backend/var/outbox/*.eml` — open one in any mail client or
+browser to read it. That directory is gitignored.
+
+This is the one place a temporary password is written anywhere, which is exactly why it
+is refused when `ENVIRONMENT` is `production`. Use a real provider there.
+
+To check a real provider, set `EMAIL_PROVIDER=smtp` with the host and credentials and
+run the same script.
 
 ### Logout is real
 
@@ -497,10 +710,24 @@ Sciences are all just rows an administrator creates in `classes`.
 
 **Backend**
 
-| Command                         | Purpose                       |
-| ------------------------------- | ----------------------------- |
-| `uvicorn app.main:app --reload` | Run the dev server            |
-| `python -m scripts.init_db`     | Create tables / seed an admin |
+| Command                                  | Purpose                                |
+| ---------------------------------------- | -------------------------------------- |
+| `uvicorn app.main:app --reload`          | Run the dev server                     |
+| `python -m scripts.init_db`              | Create tables / seed an admin          |
+| `python -m scripts.add_email_columns`    | Add the credential-delivery columns    |
+| `python -m scripts.send_test_email <to>` | Check the email provider configuration |
+| `python -m scripts.purge_students`       | Back up and delete every student       |
+
+`init_db` uses `create_all`, which creates missing *tables* but never alters an existing
+one. A database created before email provisioning was added needs
+`python -m scripts.add_email_columns` once. It is safe to re-run: each column is added
+only if it is absent.
+
+`purge_students` is a development tool and it is destructive: deleting a student
+cascades to their enrollments, their results, and the audit logs attached to those
+results. It reports and changes nothing without `--confirm`, and it writes every row
+it is about to remove to a timestamped JSON file under `backend/var/` first. Teachers,
+administrators, subjects, classes, terms and examinations are left alone.
 
 **Frontend**
 
