@@ -52,14 +52,7 @@ SECRET_KEY            a fresh 64-byte key — see below
 CORS_ORIGINS          https://your-project.vercel.app
 FRONTEND_URL          https://your-project.vercel.app
 
-EMAIL_ENABLED         true
-EMAIL_PROVIDER        smtp
-EMAIL_HOST            smtp-relay.brevo.com
-EMAIL_PORT            587
-EMAIL_USE_TLS         true
-EMAIL_USE_SSL         false
-EMAIL_USERNAME        b84b01001@smtp-brevo.com
-EMAIL_PASSWORD        your Brevo SMTP key
+BREVO_API_KEY         xkeysib-… (an API key, not the SMTP key)
 EMAIL_FROM            mmapikotendai@gmail.com
 EMAIL_FROM_NAME       Presbyterian High School
 
@@ -71,6 +64,17 @@ ADMIN_EMAIL           you@example.com
 ADMIN_PASSWORD        a strong password
 ADMIN_NAME            Head Teacher
 ```
+
+**Email uses Brevo's HTTPS API, not SMTP.** Render's free instances block
+outbound traffic on ports 25, 465 and 587. A blocked port does not refuse the
+connection, it drops it, so an SMTP send waits out the whole timeout — long
+enough for the browser to give up on "Add student", after which the new account
+is discarded because its password could not be delivered. `render.yaml` sets
+`EMAIL_PROVIDER=brevo`, which posts to Brevo over port 443 instead.
+
+That needs an **API key** (`xkeysib-…`) from Brevo → SMTP & API → **API Keys**.
+The SMTP key (`xsmtpsib-…`) that works locally is a different credential and the
+API rejects it; the health of the config is reported by name if you mix them up.
 
 Generate the signing key rather than reusing the development one:
 

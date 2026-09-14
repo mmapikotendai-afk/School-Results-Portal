@@ -46,21 +46,17 @@ services:
         sync: false
       - key: FRONTEND_URL       # same URL; used for sign-in links in emails
         sync: false
+      # Render's free instances block outbound SMTP (ports 25, 465, 587), and
+      # a blocked port hangs until the timeout rather than failing. Email goes
+      # through Brevo's HTTPS API instead, which needs no host, port or TLS
+      # settings - only an API key.
       - key: EMAIL_ENABLED
-        sync: false
+        value: "true"
       - key: EMAIL_PROVIDER
-        sync: false
-      - key: EMAIL_HOST
-        sync: false
-      - key: EMAIL_PORT
-        sync: false
-      - key: EMAIL_USE_TLS
-        sync: false
-      - key: EMAIL_USE_SSL
-        sync: false
-      - key: EMAIL_USERNAME
-        sync: false
-      - key: EMAIL_PASSWORD
+        value: brevo
+      - key: EMAIL_TIMEOUT
+        value: "10"
+      - key: BREVO_API_KEY      # xkeysib-... from Brevo -> SMTP & API -> API Keys
         sync: false
       - key: EMAIL_FROM
         sync: false

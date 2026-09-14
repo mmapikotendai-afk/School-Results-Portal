@@ -7,10 +7,14 @@ message is actually sent.
 
     send_account_credentials(db_user, temporary_password) -> DeliveryResult
 
-Two backends ship:
+Three backends ship:
 
   smtp   any transactional provider, since they all speak SMTP. Configured
          with EMAIL_HOST / EMAIL_PORT / EMAIL_USERNAME / EMAIL_PASSWORD.
+  brevo  Brevo's HTTPS API, on port 443. For hosts that block outbound SMTP -
+         Render's free instances refuse ports 25, 465 and 587 outright, so an
+         SMTP connection there does not fail, it hangs until the timeout.
+         Configured with BREVO_API_KEY.
   file   writes the rendered message to EMAIL_OUTBOX_DIR instead of sending.
          Development only, and refused outright when ENVIRONMENT is production.
 
@@ -23,15 +27,18 @@ read it - and which cannot run in production.
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import smtplib
 import ssl
+import urllib.error
+import urllib.request
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from email.message import EmailMessage
-from email.utils import formataddr, formatdate, make_msgid
+from email.utils import formataddr, formatdate, make_msgid, parseaddr
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -163,6 +170,74 @@ class SMTPBackend(EmailBackend):
         smtp.send_message(message)
 
 
+class BrevoAPIBackend(EmailBackend):
+    """Delivery through Brevo's transactional email API over HTTPS.
+
+    Exists because SMTP is not always reachable. Render's free web services
+    block outbound traffic on ports 25, 465 and 587, and a blocked port does
+    not refuse the connection - it drops it, so smtplib waits out the whole
+    timeout before failing. Port 443 is never blocked.
+
+    Uses the standard library rather than an HTTP client package: one POST
+    does not justify a dependency.
+    """
+
+    ENDPOINT = "https://api.brevo.com/v3/smtp/email"
+
+    def send(self, message: EmailMessage) -> None:
+        recipient_name, recipient_email = parseaddr(message["To"] or "")
+        text_part = message.get_body(preferencelist=("plain",))
+        html_part = message.get_body(preferencelist=("html",))
+
+        payload = {
+            "sender": {
+                "name": settings.email_from_name,
+                "email": settings.email_from_address,
+            },
+            "to": [{"email": recipient_email, "name": recipient_name or recipient_email}],
+            "subject": message["Subject"],
+            "htmlContent": html_part.get_content() if html_part else None,
+            "textContent": text_part.get_content() if text_part else None,
+            "headers": {
+                "Auto-Submitted": "auto-generated",
+                "X-Auto-Response-Suppress": "All",
+            },
+        }
+
+        request = urllib.request.Request(
+            self.ENDPOINT,
+            data=json.dumps(payload).encode("utf-8"),
+            method="POST",
+            headers={
+                "api-key": settings.BREVO_API_KEY,
+                "accept": "application/json",
+                "content-type": "application/json",
+            },
+        )
+
+        try:
+            with urllib.request.urlopen(request, timeout=settings.EMAIL_TIMEOUT) as response:
+                if response.status >= 300:
+                    raise EmailError(f"Brevo refused the message (HTTP {response.status}).")
+        except urllib.error.HTTPError as exc:
+            # Brevo explains itself in the body. The explanation is safe to
+            # surface; the request, which carries the password, is not.
+            try:
+                detail = json.loads(exc.read().decode("utf-8")).get("message", "")
+            except (ValueError, OSError):
+                detail = ""
+            if exc.code == 401:
+                raise EmailError(
+                    "Brevo rejected BREVO_API_KEY (401). Use an API key from "
+                    "SMTP & API -> API Keys, not the SMTP key."
+                ) from None
+            raise EmailError(
+                f"Brevo refused the message (HTTP {exc.code}){': ' + detail if detail else ''}."
+            ) from None
+        except (urllib.error.URLError, OSError) as exc:
+            raise EmailError(f"Could not reach the Brevo API: {exc}") from None
+
+
 class FileBackend(EmailBackend):
     """Write the message to disk rather than sending it. Development only.
 
@@ -197,7 +272,11 @@ class FileBackend(EmailBackend):
 
 def get_backend() -> EmailBackend:
     """The configured provider."""
-    return FileBackend() if settings.EMAIL_PROVIDER == "file" else SMTPBackend()
+    if settings.EMAIL_PROVIDER == "file":
+        return FileBackend()
+    if settings.EMAIL_PROVIDER == "brevo":
+        return BrevoAPIBackend()
+    return SMTPBackend()
 
 
 # ---------------------------------------------------------------- sending

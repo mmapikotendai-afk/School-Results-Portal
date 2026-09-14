@@ -132,6 +132,11 @@ class Settings(BaseSettings):
     EMAIL_FROM: str = ""
     EMAIL_FROM_NAME: str = ""
 
+    # For EMAIL_PROVIDER=brevo. An API key (xkeysib-...) from SMTP & API ->
+    # API Keys - a different credential from the SMTP key, which the API
+    # rejects.
+    BREVO_API_KEY: str = ""
+
     # Where the "file" provider drops rendered messages. Development only.
     EMAIL_OUTBOX_DIR: str = "var/outbox"
 
@@ -206,9 +211,10 @@ class Settings(BaseSettings):
     @classmethod
     def _known_provider(cls, value: str) -> str:
         provider = (value or "").strip().lower() or "smtp"
-        if provider not in {"smtp", "file"}:
+        if provider not in {"smtp", "brevo", "file"}:
             raise ValueError(
-                "EMAIL_PROVIDER must be 'smtp' (any transactional provider) or "
+                "EMAIL_PROVIDER must be 'smtp' (any transactional provider), "
+                "'brevo' (Brevo's HTTPS API, for hosts that block SMTP) or "
                 "'file' (development only)."
             )
         return provider
@@ -243,6 +249,20 @@ class Settings(BaseSettings):
                     "EMAIL_PROVIDER=file writes messages to disk instead of "
                     "sending them, and must not be used in production."
                 )
+            return None
+        if self.EMAIL_PROVIDER == "brevo":
+            if not self.BREVO_API_KEY:
+                return (
+                    "BREVO_API_KEY is not set. Create one at https://app.brevo.com "
+                    "-> SMTP & API -> API Keys."
+                )
+            if self.BREVO_API_KEY.startswith("xsmtpsib-"):
+                return (
+                    "BREVO_API_KEY holds an SMTP key (xsmtpsib-...). The API needs "
+                    "an API key (xkeysib-...) from SMTP & API -> API Keys."
+                )
+            if not self.email_from_address:
+                return "EMAIL_FROM is not set."
             return None
         if not self.EMAIL_HOST:
             return "EMAIL_HOST is not set."
