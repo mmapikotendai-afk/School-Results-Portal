@@ -53,9 +53,9 @@ async def lifespan(app: FastAPI):
         # DATABASE_URL overrides the assembled URL entirely, so the two
         # disagree the moment it is set - and a startup line naming the
         # wrong database sends anyone debugging to the wrong data.
-        logger.info("MySQL connection established (%s).", engine.url.database)
+        logger.info("Database connection established (%s, %s).", engine.url.get_backend_name(), engine.url.database)
     else:
-        logger.warning("MySQL unavailable - the API will still serve /health. %s", error)
+        logger.warning("Database unavailable - the API will still serve /health. %s", error)
 
     yield
     logger.info("Shutting down %s.", settings.APP_NAME)
@@ -99,42 +99,70 @@ app.add_middleware(
 )
 
 # Wording that means "the table or column is not there", across engines:
-# MySQL raises ProgrammingError (1146), SQLite raises OperationalError.
-_MISSING_SCHEMA = ("doesn't exist", "no such table", "no such column", "unknown column")
+# MySQL raises ProgrammingError (1146), SQLite raises OperationalError, and
+# Postgres says 'relation "x" does not exist' or 'column "x" does not exist'.
+_MISSING_SCHEMA = (
+    "doesn't exist",
+    "does not exist",
+    "no such table",
+    "no such column",
+    "unknown column",
+)
 
 CONNECTION_MESSAGE = (
-    "The database is currently unavailable. Please check the MySQL connection "
-    "settings in backend/.env and try again."
+    "The database is currently unavailable. Please try again in a moment."
 )
 SCHEMA_MESSAGE = (
     "The database schema is not set up. From the backend directory, run:  "
     "python -m scripts.init_db"
 )
+QUERY_MESSAGE = (
+    "The server could not complete that request. The problem has been logged."
+)
 
 
-def _database_message(exc: Exception) -> str:
-    """Tell a fresh install apart from a connectivity problem.
-
-    Both are 503s, but the fixes are entirely different, and guessing wrong
-    sends someone to check credentials that were never the problem.
-    """
+def _is_missing_schema(exc: Exception) -> bool:
     text = str(exc).lower()
-    return SCHEMA_MESSAGE if any(m in text for m in _MISSING_SCHEMA) else CONNECTION_MESSAGE
+    return any(marker in text for marker in _MISSING_SCHEMA)
 
 
 @app.exception_handler(OperationalError)
-@app.exception_handler(ProgrammingError)
 async def database_unavailable_handler(request: Request, exc: Exception):
-    """Turn an unreachable database or a missing schema into a clean 503.
+    """An unreachable database, or a missing table on SQLite, as a clean 503.
 
-    Without this the client sees an opaque 500 and a stack trace whenever the
-    database is unreachable or the tables have not been created - which is the
-    normal state of a fresh install, before setup has been done.
+    OperationalError is what a dropped connection, a refused login or a
+    database that is still waking up all raise. Those are genuinely the
+    database being unavailable, and "try again" is honest advice for them.
     """
-    logger.error("Database error on %s %s: %s", request.method, request.url.path, exc)
+    logger.error("Database unavailable on %s %s: %s", request.method, request.url.path, exc)
     return JSONResponse(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        content={"detail": _database_message(exc)},
+        content={"detail": SCHEMA_MESSAGE if _is_missing_schema(exc) else CONNECTION_MESSAGE},
+    )
+
+
+@app.exception_handler(ProgrammingError)
+async def database_query_handler(request: Request, exc: Exception):
+    """A missing schema as a 503, and any other rejected query as a 500.
+
+    ProgrammingError means the database was reachable and refused the SQL.
+    That used to be reported as "the database is unavailable", which sent
+    whoever read it to check connection settings that were never wrong - the
+    real cause was a query Postgres rejects and MySQL had let through. A query
+    the database will not run is a bug in the application, not an outage, and
+    it is reported as one.
+    """
+    if _is_missing_schema(exc):
+        logger.error("Missing schema on %s %s: %s", request.method, request.url.path, exc)
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"detail": SCHEMA_MESSAGE},
+        )
+
+    logger.exception("Query rejected on %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"detail": QUERY_MESSAGE},
     )
 
 

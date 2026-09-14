@@ -138,11 +138,23 @@ class AcademicService:
         )
 
     def list_terms(self, academic_year_id: Optional[int] = None) -> List[Tuple[Term, int]]:
+        # Counted in a subquery rather than by grouping the outer query.
+        # joinedload adds the academic year's columns to the SELECT, and
+        # Postgres refuses a GROUP BY that leaves a joined table's columns out
+        # of it - MySQL let it through, which is why this only failed once the
+        # app ran on Postgres.
+        exam_counts = (
+            self.db.query(
+                Examination.term_id.label("term_id"),
+                func.count(Examination.id).label("n"),
+            )
+            .group_by(Examination.term_id)
+            .subquery()
+        )
         query = (
-            self.db.query(Term, func.count(Examination.id))
-            .outerjoin(Examination, Examination.term_id == Term.id)
+            self.db.query(Term, func.coalesce(exam_counts.c.n, 0))
+            .outerjoin(exam_counts, exam_counts.c.term_id == Term.id)
             .options(joinedload(Term.academic_year))
-            .group_by(Term.id)
         )
         if academic_year_id:
             query = query.filter(Term.academic_year_id == academic_year_id)
