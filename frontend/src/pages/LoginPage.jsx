@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
 import { Alert, Button, Input } from '@/components/ui'
 import { SIGN_OUT_REASON } from '@/context/authContext'
@@ -43,7 +43,6 @@ export function LoginPage() {
 
   const { signIn, signOutReason, clearSignOutReason } = useAuth()
   const navigate = useNavigate()
-  const location = useLocation()
 
   const [form, setForm] = useState({ identifier: '', password: '' })
   const [fieldErrors, setFieldErrors] = useState({})
@@ -79,9 +78,10 @@ export function LoginPage() {
     setSubmitting(true)
     try {
       const user = await signIn(form.identifier.trim(), form.password)
-      // Send the user back where they were headed before being redirected here.
-      const target = location.state?.from?.pathname || homePathForRole(user.role)
-      navigate(target, { replace: true })
+      // Always the account's own home, never the page a link pointed at.
+      // Portal URLs get forwarded, and sign-in should not deliver whoever
+      // uses a forwarded link to the exact screen it was copied from.
+      navigate(homePathForRole(user.role), { replace: true })
     } catch (err) {
       setError({
         code: getErrorCode(err),
