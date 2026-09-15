@@ -6,7 +6,7 @@
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1'
 
 export const SCHOOL = {
-  name: import.meta.env.VITE_SCHOOL_NAME || 'Your School Name',
+  name: import.meta.env.VITE_SCHOOL_NAME || 'Presbyterian High School',
   shortName: import.meta.env.VITE_SCHOOL_SHORT_NAME || 'School',
   motto: import.meta.env.VITE_SCHOOL_MOTTO || '',
 }
