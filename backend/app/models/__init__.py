@@ -21,6 +21,7 @@ results               one mark per student, subject and examination
 result_audit_logs     immutable trail of corrections to results
 result_submissions    submission tracking per examination and assignment
 revoked_tokens        access tokens invalidated by signing out
+login_attempts        failed sign-ins, counted durably for lockout
 password_reset_requests  reset requests raised by users, settled by the office
 school_settings       school identity for branded report cards
 """
@@ -40,6 +41,7 @@ from app.models.enums import (
 )
 from app.models.examination import Examination
 from app.models.grade_band import GradeBand
+from app.models.login_attempt import LoginAttempt
 from app.models.password_reset import PasswordResetRequest
 from app.models.result import Result, ResultAuditLog
 from app.models.revoked_token import RevokedToken
@@ -57,6 +59,7 @@ __all__ = [
     "EnrollmentStatus",
     "Examination",
     "GradeBand",
+    "LoginAttempt",
     "PasswordResetRequest",
     "ExaminationStatus",
     "Gender",

@@ -7,7 +7,7 @@ role here, so a crafted request cannot reach data the UI would have hidden.
 
 from typing import Optional
 
-from fastapi import Depends
+from fastapi import Depends, Request
 from sqlalchemy.orm import Session
 
 from app.auth.errors import (
@@ -18,6 +18,7 @@ from app.auth.errors import (
 )
 from app.auth.jwt import TokenError, decode_access_token
 from app.auth.scheme import oauth2_scheme
+from app.auth.session import csrf_is_valid, token_from_request
 from app.database import get_db
 from app.models.enums import UserRole
 from app.models.revoked_token import RevokedToken
@@ -25,6 +26,7 @@ from app.models.user import User
 
 
 def get_current_user(
+    request: Request,
     token: Optional[str] = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
 ) -> User:
@@ -35,9 +37,23 @@ def get_current_user(
     3. Token version            - has the password changed since it was issued?
     4. Account state            - is the account still active?
     """
+    # The browser sends an httpOnly cookie; API clients and the interactive
+    # docs send a bearer header. Both are accepted, and the cookie is
+    # preferred because that is what a signed-in page will be carrying.
+    token = token_from_request(request) or token
+
     if not token:
         raise auth_error(
             AuthErrorCode.TOKEN_MISSING, "Authentication is required."
+        )
+
+    # A cookie is attached by the browser to any request to this origin,
+    # including one another site caused. The header never was, so only the
+    # cookie path needs this check.
+    if not csrf_is_valid(request):
+        raise auth_error(
+            AuthErrorCode.TOKEN_INVALID,
+            "That request could not be verified. Reload the page and try again.",
         )
 
     payload, error = decode_access_token(token)

@@ -1,26 +1,43 @@
 /**
  * Shared Axios instance.
  *
- * - Attaches the bearer token to every request.
+ * - Sends the session cookie with every request.
  * - Normalises backend errors into a predictable { code, message } shape.
  * - Reports 401s to AuthContext so a dead session is cleared everywhere at once.
  */
 
 import axios from 'axios'
 
-import { API_BASE_URL, TOKEN_STORAGE_KEY } from '@/utils/constants'
-import { readItem, removeItem } from '@/utils/storage'
+import { API_BASE_URL, CSRF_HEADER } from '@/utils/constants'
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: 20000,
   headers: { 'Content-Type': 'application/json' },
+  // The session is an httpOnly cookie the browser attaches itself. There is
+  // no token here to read or forget, and script on the page cannot reach it.
+  withCredentials: true,
 })
 
+/** Methods that cannot change anything, and so need no CSRF token. */
+const SAFE_METHODS = new Set(['get', 'head', 'options'])
+
+/**
+ * The CSRF token, read from the cookie the server set alongside the session.
+ *
+ * Readable on purpose: a cookie is attached to any request to this origin,
+ * including one another site caused, so the server needs something back that
+ * only a page on this origin could have read. That is what this echoes.
+ */
+function csrfToken() {
+  const match = document.cookie.match(/(?:^|;\s*)srp_csrf=([^;]+)/)
+  return match ? decodeURIComponent(match[1]) : null
+}
+
 apiClient.interceptors.request.use((config) => {
-  const token = readItem(TOKEN_STORAGE_KEY)
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
+  if (!SAFE_METHODS.has((config.method || 'get').toLowerCase())) {
+    const token = csrfToken()
+    if (token) config.headers[CSRF_HEADER] = token
   }
   return config
 })
@@ -44,9 +61,10 @@ apiClient.interceptors.response.use(
     const url = error.config?.url ?? ''
 
     if (status === 401 && !isAuthAttempt(url)) {
-      // The token is gone, expired or revoked. Clear it and tell the app why,
-      // so the login screen can explain rather than just appearing.
-      removeItem(TOKEN_STORAGE_KEY)
+      // The session is gone, expired or revoked. Nothing to clear here: it
+      // lives in an httpOnly cookie the server discards. Telling the app is
+      // all that remains, so the sign-in screen can explain what happened
+      // rather than simply appearing.
       onUnauthorized?.(getErrorCode(error))
     }
 

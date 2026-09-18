@@ -7,6 +7,7 @@ regardless of what the frontend chose to render.
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -14,7 +15,9 @@ from app.database import get_db
 from app.dependencies.auth import require_admin
 from app.models.enums import UserRole
 from app.models.user import User
+from app.schemas.common import Message
 from app.schemas.user import (
+    LockoutRelease,
     AccountCreate,
     AccountProvisioned,
     AccountStatusUpdate,
@@ -23,6 +26,7 @@ from app.schemas.user import (
 )
 from app.services.account_service import AccountService
 from app.services import email_service
+from app.services.lockout_service import LockoutService
 from app.services.provisioning_service import ProvisioningService
 
 router = APIRouter(
@@ -156,3 +160,51 @@ def _get_user(db: Session, user_id: int) -> User:
             status_code=status.HTTP_404_NOT_FOUND, detail="Account not found."
         )
     return user
+
+
+# ------------------------------------------------------------- lockouts
+
+
+@router.get("/lockouts", summary="Accounts currently locked out")
+def list_lockouts(db: Session = Depends(get_db)) -> List[dict]:
+    """Who cannot currently sign in because of repeated failures.
+
+    Identifiers are listed as they were typed, so an entry that matches no
+    account is visible too - which is what an attack on a guessed address
+    looks like.
+    """
+    service = LockoutService(db)
+    return [
+        {
+            "identifier": row.identifier,
+            "failed_count": row.failed_count,
+            "locked_until": row.locked_until,
+            "last_failed_at": row.last_failed_at,
+            "lifetime_lockouts": row.lockout_count,
+            "matches_account": bool(
+                db.query(User.id)
+                .filter(
+                    (func.lower(User.email) == row.identifier)
+                    | (func.lower(User.username) == row.identifier)
+                )
+                .first()
+            ),
+        }
+        for row in service.locked_identifiers()
+    ]
+
+
+@router.post("/lockouts/release", response_model=Message, summary="Release a lockout")
+def release_lockout(
+    payload: LockoutRelease, db: Session = Depends(get_db)
+) -> Message:
+    """Let somebody sign in again before the lock expires on its own.
+
+    Releases both counters. The lifetime count of how often this identifier
+    has been locked is kept, so releasing a lock does not erase the evidence
+    that it was attacked.
+    """
+    released = LockoutService(db).unlock(payload.identifier)
+    if not released:
+        return Message(detail="That identifier is not currently locked.")
+    return Message(detail=f"{payload.identifier} can sign in again.")

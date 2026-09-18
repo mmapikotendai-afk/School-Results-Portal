@@ -6,7 +6,7 @@ registration endpoint here and none anywhere else in the API.
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.auth.errors import (
@@ -18,6 +18,7 @@ from app.auth.errors import (
 )
 from app.auth.jwt import decode_access_token
 from app.auth.scheme import oauth2_scheme
+from app.auth.session import attach_session, clear_session, token_from_request
 from app.database import get_db
 from app.dependencies.auth import get_current_user
 from app.models.user import User
@@ -32,6 +33,8 @@ from app.schemas.auth import (
 from app.schemas.common import Message
 from app.schemas.user import UserProfile
 from app.services.auth_service import AuthService
+from app.services.lockout_service import LockoutService
+from app.utils.security import identifiers_for, password_policy_errors
 from app.services.password_reset_service import ACKNOWLEDGEMENT, PasswordResetService
 from app.utils.rate_limit import login_buckets, reset_request_buckets
 
@@ -42,6 +45,7 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 def login(
     payload: LoginRequest,
     request: Request,
+    response: Response,
     db: Session = Depends(get_db),
 ) -> LoginResponse:
     """Exchange a username or email plus password for an access token.
@@ -52,6 +56,14 @@ def login(
     """
     client_ip = request.client.host if request.client else "unknown"
     buckets = login_buckets(payload.identifier, client_ip)
+    lockout = LockoutService(db)
+
+    # The durable lock is checked first, and before the password is examined.
+    # Verifying the password and then refusing would betray, through response
+    # time, whether the guess was right.
+    locked, retry_after = lockout.status(payload.identifier)
+    if locked:
+        raise too_many_attempts_error(retry_after)
 
     for limiter, key in buckets:
         allowed, retry_after = limiter.check(key)
@@ -67,6 +79,10 @@ def login(
         for limiter, key in buckets:
             limiter.record_failure(key)
 
+        locked_now, retry_after = lockout.record_failure(payload.identifier)
+        if locked_now:
+            raise too_many_attempts_error(retry_after)
+
     if error == "account_inactive":
         raise INACTIVE_ERROR
     if user is None:
@@ -76,8 +92,16 @@ def login(
     # accumulates towards a lockout.
     for limiter, key in buckets:
         limiter.reset(key)
+    lockout.clear(payload.identifier)
 
     token, expires_in = service.issue_token(user)
+
+    # The session travels as an httpOnly cookie: unreadable to script, and
+    # gone when the browser closes. The token is still returned in the body
+    # so that API clients and the interactive docs keep working unchanged.
+    csrf = attach_session(response, token, expires_in)
+    response.headers["X-CSRF-Token"] = csrf
+
     return LoginResponse(
         access_token=token,
         expires_in=expires_in,
@@ -87,6 +111,8 @@ def login(
 
 @router.post("/logout", response_model=Message, summary="Sign out")
 def logout(
+    request: Request,
+    response: Response,
     token: Optional[str] = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
 ) -> Message:
@@ -96,11 +122,15 @@ def logout(
     invalid still succeeds, because the outcome the caller wanted is the
     outcome they get. There is nothing to reveal and nothing to retry.
     """
+    token = token_from_request(request) or token
     if token:
         payload, _error = decode_access_token(token)
         if payload:
             AuthService(db).revoke_token(payload)
 
+    # Cleared whatever happened above: a caller who asked to be signed out
+    # should not still be holding a session cookie afterwards.
+    clear_session(response)
     return Message(detail="You have been signed out.")
 
 
@@ -118,6 +148,7 @@ def read_current_user(user: User = Depends(get_current_user)) -> UserProfile:
 def change_password(
     payload: ChangePasswordRequest,
     request: Request,
+    response: Response,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> ChangePasswordResponse:
@@ -126,6 +157,17 @@ def change_password(
     On success the current token stops validating immediately, so the client
     must discard it and sign in again with the new password.
     """
+    # The shape rules ran in the schema. This one needs the account: a
+    # password may not be built from the holder's own name, email, student or
+    # staff number, which is the reuse a school actually sees.
+    personal = password_policy_errors(
+        payload.new_password, identifiers_for(user)
+    )
+    if personal:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=" ".join(personal)
+        )
+
     service = AuthService(db)
     error = service.change_password(
         user, payload.current_password, payload.new_password
@@ -137,6 +179,9 @@ def change_password(
             "Your current password is incorrect.",
         )
 
+    # The token version has moved on, so every token this account holds is
+    # already dead. Clearing the cookie makes the browser agree.
+    clear_session(response)
     return ChangePasswordResponse(
         detail="Your password has been changed. Please sign in again.",
         signed_out=True,

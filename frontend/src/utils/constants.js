@@ -13,9 +13,16 @@ export const SCHOOL = {
 
 export const APP_NAME = 'Results Portal'
 
-/** Keys used to persist the session in localStorage. */
-export const TOKEN_STORAGE_KEY = 'srp.access_token'
-export const TOKEN_EXPIRY_STORAGE_KEY = 'srp.access_token_expires_at'
+/**
+ * The session is an httpOnly cookie set by the server: it cannot be read from
+ * here, and it is discarded when the browser closes. Only the CSRF token is
+ * readable, and it exists to be echoed back in a header on writes.
+ */
+export const CSRF_HEADER = 'X-CSRF-Token'
+
+/** When the session ends, so the app can sign out on time rather than on the
+ *  next failed request. Holds an expiry timestamp, never a credential. */
+export const SESSION_EXPIRY_STORAGE_KEY = 'srp.session_expires_at'
 
 /* ---------------------------------------------------------------------------
  * Status vocabularies, mirroring app/models/enums.py on the backend.

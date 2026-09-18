@@ -67,10 +67,38 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
 
+    # Sign-in lockout. Counted in the database so the limit survives a
+    # restart; the in-process limiter in utils/rate_limit.py stays as a second
+    # layer against a single address hammering many accounts.
+    LOGIN_MAX_FAILURES: int = 5
+    LOCKOUT_MINUTES: int = 15
+
+    # A failure this old no longer counts towards a lockout, so honest
+    # mistyping spread over a week never accumulates into one.
+    LOGIN_FAILURE_WINDOW_MINUTES: int = 60
+
     # bcrypt work factor. Higher is stronger but slower: on a modest server
     # 12 costs roughly half a second per sign-in, 10 about a tenth. Do not go
     # below 10.
     BCRYPT_ROUNDS: int = 12
+
+    # --- Session cookie ---
+    # The session travels in an httpOnly cookie rather than a header, so that
+    # script on the page cannot read it and it dies with the browser. The
+    # bearer header still works, for API clients and the interactive docs.
+    SESSION_COOKIE_NAME: str = "srp_session"
+    CSRF_COOKIE_NAME: str = "srp_csrf"
+    CSRF_HEADER_NAME: str = "X-CSRF-Token"
+
+    # Lax is correct when the frontend and API share an origin, which is what
+    # the Vercel rewrite arranges. Set to "none" only if they must stay on
+    # separate domains, and be aware browsers are withdrawing support for
+    # cookies sent that way.
+    SESSION_COOKIE_SAMESITE: str = "lax"
+
+    # Sent over HTTPS only. Turned off automatically in development, where
+    # there is no certificate on localhost.
+    SESSION_COOKIE_SECURE: bool = True
 
     # --- CORS ---
     # `NoDecode` stops pydantic-settings from JSON-parsing the raw env value, so
@@ -300,6 +328,18 @@ class Settings(BaseSettings):
             hint = hints.get(host, "the API key or SMTP password for that host")
             return f"EMAIL_USERNAME is set but EMAIL_PASSWORD is empty. Use {hint}."
         return None
+
+    @property
+    def cookie_secure(self) -> bool:
+        """Whether to mark the session cookie Secure.
+
+        Forced off in development: a Secure cookie is never stored by a
+        browser talking to http://localhost, so leaving it on would make
+        sign-in appear to succeed and then silently fail on the next request.
+        """
+        if self.ENVIRONMENT.strip().lower() in {"development", "dev", "local", "test"}:
+            return False
+        return self.SESSION_COOKIE_SECURE
 
     @property
     def sqlalchemy_database_uri(self) -> str:

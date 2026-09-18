@@ -16,6 +16,7 @@ from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from app import __version__
 from app.config import settings
+from app.auth.session import csrf_is_valid
 from app.database import check_database_connection, engine
 from app.routers import api_router
 
@@ -164,6 +165,36 @@ async def database_query_handler(request: Request, exc: Exception):
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"detail": QUERY_MESSAGE},
     )
+
+
+@app.middleware("http")
+async def enforce_csrf(request: Request, call_next):
+    """Refuse an unsafe, cookie-authenticated request that cannot prove origin.
+
+    Checked here rather than only in the authentication dependency, because
+    not every route has one: signing out does not, and a route added later
+    might not either. A browser attaches the session cookie to any request to
+    this origin, whoever caused it, so the check belongs where every request
+    passes.
+
+    Requests carrying an Authorization header are exempt. A browser never adds
+    that header on its own, so such a request cannot be forged from another
+    site in the first place.
+    """
+    if not csrf_is_valid(request):
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={
+                "detail": {
+                    "code": "csrf_failed",
+                    "message": (
+                        "That request could not be verified. Reload the page "
+                        "and try again."
+                    ),
+                }
+            },
+        )
+    return await call_next(request)
 
 
 @app.middleware("http")

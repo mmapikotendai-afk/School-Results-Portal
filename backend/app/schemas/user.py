@@ -105,3 +105,9 @@ class AccountProvisioned(BaseModel):
     role: UserRole
     delivery: CredentialDelivery
     detail: str
+
+
+class LockoutRelease(BaseModel):
+    """Which identifier an administrator is releasing."""
+
+    identifier: str = Field(min_length=1, max_length=255)

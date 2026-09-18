@@ -1,16 +1,20 @@
 /**
  * Authentication state for the whole app.
  *
- * Persistence: the token is kept in localStorage so a refresh does not sign the
- * user out, alongside the expiry we were told at login. On boot the profile is
- * always re-fetched from /auth/me rather than trusted from cache, so a token
- * that has been revoked, expired, or belongs to a deactivated account is
- * discovered immediately.
+ * The session itself is an httpOnly cookie held by the browser. This file
+ * never sees it, cannot read it, and has nothing to store: script on the page
+ * is unable to reach the credential, and the cookie is discarded when the
+ * browser closes rather than outliving the person who signed in - which is
+ * what left the next user of a shared staff-room machine signed in as the
+ * last one.
  *
- * localStorage is readable by any script on the origin, so it is only as safe
- * as the app is free of XSS. The tokens are short-lived and revocable server
- * side to limit the blast radius; moving to an httpOnly cookie is the next
- * hardening step and would need CSRF protection to go with it.
+ * What is kept here is the expiry timestamp, so the app can sign out on time
+ * instead of waiting for the next request to fail. It is a time, not a
+ * credential, and is worthless to anyone who reads it.
+ *
+ * On boot the profile is re-fetched from /auth/me rather than trusted from
+ * cache, so a session that has been revoked, has expired, or belongs to a
+ * deactivated account is discovered immediately.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -18,25 +22,29 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AuthContext, SIGN_OUT_REASON } from '@/context/authContext'
 import { setUnauthorizedHandler } from '@/services/apiClient'
 import authService from '@/services/authService'
-import { TOKEN_EXPIRY_STORAGE_KEY, TOKEN_STORAGE_KEY } from '@/utils/constants'
+import { SESSION_EXPIRY_STORAGE_KEY } from '@/utils/constants'
 import { readItem, removeItem, writeItem } from '@/utils/storage'
 
 function storedExpiry() {
-  const raw = readItem(TOKEN_EXPIRY_STORAGE_KEY)
+  const raw = readItem(SESSION_EXPIRY_STORAGE_KEY)
   const value = raw ? Number(raw) : NaN
   return Number.isFinite(value) ? value : null
 }
 
-/** A stored token is only worth sending if it has not already expired. */
-function hasLiveToken() {
-  if (!readItem(TOKEN_STORAGE_KEY)) return false
+/**
+ * Whether a session might still be live.
+ *
+ * Only ever a hint. The cookie cannot be read from here, so this says "it is
+ * worth asking the server", never "the user is signed in". The answer that
+ * counts comes from /auth/me.
+ */
+function mightBeSignedIn() {
   const expiry = storedExpiry()
-  return expiry === null || expiry > Date.now()
+  return expiry !== null && expiry > Date.now()
 }
 
 function clearStoredSession() {
-  removeItem(TOKEN_STORAGE_KEY)
-  removeItem(TOKEN_EXPIRY_STORAGE_KEY)
+  removeItem(SESSION_EXPIRY_STORAGE_KEY)
 }
 
 export function AuthProvider({ children }) {
@@ -59,7 +67,7 @@ export function AuthProvider({ children }) {
   const signOut = useCallback(
     async (reason = SIGN_OUT_REASON.USER) => {
       // Only worth a round-trip while the token could still be accepted.
-      if (reason === SIGN_OUT_REASON.USER && hasLiveToken()) {
+      if (reason === SIGN_OUT_REASON.USER && mightBeSignedIn()) {
         await authService.logout()
       }
       clearSession(reason)
@@ -101,7 +109,7 @@ export function AuthProvider({ children }) {
     let cancelled = false
 
     async function restore() {
-      if (!hasLiveToken()) {
+      if (!mightBeSignedIn()) {
         clearStoredSession()
         if (!cancelled) setInitialising(false)
         return
@@ -135,8 +143,9 @@ export function AuthProvider({ children }) {
       const data = await authService.login(identifier, password)
       const expiresAt = Date.now() + data.expires_in * 1000
 
-      writeItem(TOKEN_STORAGE_KEY, data.access_token)
-      writeItem(TOKEN_EXPIRY_STORAGE_KEY, String(expiresAt))
+      // The session cookie arrived with this response; only the expiry is
+      // ours to keep.
+      writeItem(SESSION_EXPIRY_STORAGE_KEY, String(expiresAt))
       setUser(data.user)
       setSignOutReason(null)
       scheduleExpiry(expiresAt)
