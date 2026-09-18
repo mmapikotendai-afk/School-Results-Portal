@@ -2,7 +2,17 @@
 
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    UploadFile,
+    status,
+)
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -14,6 +24,8 @@ from app.schemas.catalog import ClassSummary, SubjectSummary
 from app.schemas.common import Page
 from app.schemas.people import (
     EnrollmentChange,
+    StudentImportReport,
+    StudentImportResult,
     StatusUpdate,
     StudentCreate,
     StudentCreated,
@@ -26,6 +38,8 @@ from app.schemas.user import CredentialDelivery
 from app.services.academic_service import AcademicService
 from app.services.account_service import AccountService
 from app.services.people_service import StudentService
+from app.services import student_import_service
+from app.services.student_import_service import StudentImportService
 from app.services import email_service
 from app.services.provisioning_service import ProvisioningService
 
@@ -201,6 +215,131 @@ def resend_student_credentials(
     student = _get(db, student_id)
     result = ProvisioningService(db).reissue_credentials(student.user)
     return _delivery(student.user, result)
+
+
+# ------------------------------------------------- bulk import (CSV)
+#
+# Declared before the "/{student_id}" routes below: FastAPI matches in order,
+# and "/import/template.csv" would otherwise be read as a student id.
+
+
+def _import_target(db: Session, class_id: int, academic_year_id: Optional[int], subject_ids: List[int]):
+    """Resolve the class, year and subjects chosen on screen, or refuse."""
+    service = StudentImportService(db)
+    school_class, year_id, subject_names, error = service.describe_target(
+        class_id, academic_year_id, subject_ids
+    )
+    if error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
+    return service, school_class, year_id, subject_names
+
+
+def _parse_subject_ids(raw: Optional[str]) -> List[int]:
+    """Subject ids arrive as a comma-separated form field alongside the file."""
+    if not raw:
+        return []
+    try:
+        return [int(part) for part in raw.split(",") if part.strip()]
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The subject selection was not understood.",
+        ) from None
+
+
+@router.get(
+    "/import/template.csv",
+    summary="Download the bulk student import template",
+    response_class=Response,
+)
+def student_import_template() -> Response:
+    """A CSV with the headings the importer expects, and two example rows.
+
+    Deliberately carries no class column: the class is chosen on screen and
+    applied to every row, so a stray value in a file cannot put one learner in
+    the wrong form.
+    """
+    body = student_import_service.build_template()
+    return Response(
+        content=body,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="student-import-template.csv"'},
+    )
+
+
+@router.post(
+    "/import/preview",
+    response_model=StudentImportReport,
+    summary="Validate a student CSV without creating anything",
+)
+async def preview_student_import(
+    file: UploadFile = File(...),
+    class_id: int = Form(...),
+    academic_year_id: Optional[int] = Form(default=None),
+    subject_ids: Optional[str] = Form(default=None),
+    check_deliverable: bool = Form(default=False),
+    db: Session = Depends(get_db),
+) -> StudentImportReport:
+    """Read the file and report on every row. Nothing is written."""
+    chosen = _parse_subject_ids(subject_ids)
+    service, school_class, year_id, subject_names = _import_target(
+        db, class_id, academic_year_id, chosen
+    )
+
+    raw = await _read_csv(file)
+    return service.validate(
+        raw, school_class, year_id, subject_names, check_deliverable=check_deliverable
+    )
+
+
+@router.post(
+    "/import",
+    response_model=StudentImportResult,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create every student in a validated CSV",
+)
+async def commit_student_import(
+    file: UploadFile = File(...),
+    class_id: int = Form(...),
+    academic_year_id: Optional[int] = Form(default=None),
+    subject_ids: Optional[str] = Form(default=None),
+    db: Session = Depends(get_db),
+) -> StudentImportResult:
+    """Validate once more, then create the students, accounts and enrollments.
+
+    Re-validating rather than trusting the preview is the point: the roll can
+    change between the two requests, and the file is the only thing the client
+    sends back. A file that no longer validates is refused whole.
+    """
+    chosen = _parse_subject_ids(subject_ids)
+    service, school_class, year_id, subject_names = _import_target(
+        db, class_id, academic_year_id, chosen
+    )
+
+    raw = await _read_csv(file)
+    report = service.validate(raw, school_class, year_id, subject_names)
+    if not report.can_import:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=report.detail or "That file cannot be imported.",
+        )
+
+    return service.commit(report, school_class, year_id, chosen, subject_names)
+
+
+async def _read_csv(file: UploadFile) -> bytes:
+    name = (file.filename or "").lower()
+    if not name.endswith(".csv"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Upload a CSV file. Export your spreadsheet as CSV first.",
+        )
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="The file is empty."
+        )
+    return raw
 
 
 @router.get("/{student_id}", response_model=StudentDetail, summary="View a student")

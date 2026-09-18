@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import EmptyState from '@/components/common/EmptyState'
 import PageHeader from '@/components/common/PageHeader'
@@ -200,9 +201,22 @@ export function StudentsPage() {
         title="Students"
         description="Add learners, keep their records current and manage what they study."
         actions={
-          <Button icon="plus" onClick={() => setFormState({ mode: 'create', student: null })}>
-            Add student
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {/* One learner at a time, or a whole class from a file. The bulk
+                route is a page rather than a modal: it carries a class and
+                subject choice, a preview of every row, and a summary. */}
+            <Button
+              as={Link}
+              to="/admin/students/import"
+              variant="secondary"
+              icon="file-csv"
+            >
+              Bulk import
+            </Button>
+            <Button icon="plus" onClick={() => setFormState({ mode: 'create', student: null })}>
+              Add student
+            </Button>
+          </div>
         }
       />
 

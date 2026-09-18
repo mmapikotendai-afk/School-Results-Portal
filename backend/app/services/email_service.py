@@ -97,6 +97,32 @@ def verify_deliverable(email: str) -> Optional[str]:
         return None
 
 
+def address_problem(email: str, check_deliverable: bool = False) -> Optional[str]:
+    """Why this address cannot be used, or None.
+
+    The cheap half of verify_deliverable, for validating many addresses at
+    once. Checking the format costs nothing; checking for a mail exchanger
+    costs a DNS lookup per address, which on a class of forty is forty
+    lookups and a visibly slower preview - so it is opt-in.
+    """
+    address = (email or "").strip()
+    if not address:
+        return "No email address given."
+
+    try:
+        from email_validator import EmailNotValidError, validate_email
+    except ImportError:  # pragma: no cover - dependency is declared
+        return None
+
+    try:
+        validate_email(address, check_deliverability=check_deliverable)
+        return None
+    except EmailNotValidError as exc:
+        return f"{address} is not a usable email address. {exc}"
+    except Exception:  # noqa: BLE001 - resolver failures must not block an import
+        return None
+
+
 @dataclass
 class DeliveryResult:
     """What happened when we tried to send. Never carries the password."""

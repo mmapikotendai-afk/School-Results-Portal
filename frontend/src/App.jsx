@@ -18,6 +18,7 @@ import ResetRequestsPage from '@/pages/admin/ResetRequestsPage'
 import ResultSubmissionsPage from '@/pages/admin/ResultSubmissionsPage'
 import ResultsPage from '@/pages/admin/ResultsPage'
 import SchoolPage from '@/pages/admin/SchoolPage'
+import StudentImportPage from '@/pages/admin/StudentImportPage'
 import StudentsPage from '@/pages/admin/StudentsPage'
 import SubjectsPage from '@/pages/admin/SubjectsPage'
 import TeachersPage from '@/pages/admin/TeachersPage'
@@ -66,6 +67,7 @@ export function App() {
           <Route index element={<Navigate to="/admin/dashboard" replace />} />
           <Route path="dashboard" element={<AdminDashboard />} />
           <Route path="students" element={<StudentsPage />} />
+          <Route path="students/import" element={<StudentImportPage />} />
           <Route path="teachers" element={<TeachersPage />} />
           <Route path="reset-requests" element={<ResetRequestsPage />} />
           <Route path="subjects" element={<SubjectsPage />} />

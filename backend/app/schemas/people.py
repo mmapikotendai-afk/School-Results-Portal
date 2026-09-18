@@ -218,3 +218,72 @@ class EnrollmentChange(BaseModel):
 
 class StatusUpdate(BaseModel):
     is_active: bool
+
+
+# --------------------------------------------------- bulk student import
+
+
+class StudentImportRow(BaseModel):
+    """One line of the uploaded file, as the preview table shows it."""
+
+    row: int
+    student_number: str
+    first_name: str = ""
+    last_name: str = ""
+    email: str = ""
+    date_of_birth: Optional[date] = None
+    gender: Optional[Gender] = None
+
+    valid: bool = False
+    message: str = ""
+
+
+class StudentImportRowError(BaseModel):
+    """A row that cannot be imported, or one whose email did not arrive."""
+
+    row: int
+    student_number: Optional[str] = None
+    message: str
+
+
+class StudentImportReport(BaseModel):
+    """What validating the file found. Nothing has been written."""
+
+    class_id: int
+    class_name: str
+    academic_year_id: int
+    subjects: List[str] = Field(default_factory=list)
+
+    total_rows: int = 0
+    accepted: int = 0
+    rejected: int = 0
+
+    rows: List[StudentImportRow] = Field(default_factory=list)
+    errors: List[StudentImportRowError] = Field(default_factory=list)
+
+    # False until every row is valid: the import is all-or-nothing, because a
+    # partly applied class cannot be re-uploaded without colliding with itself.
+    can_import: bool = False
+    detail: str = ""
+
+
+class StudentImportResult(BaseModel):
+    """What the confirmed import actually did."""
+
+    class_id: int
+    class_name: str
+    academic_year_id: int
+    subjects: List[str] = Field(default_factory=list)
+
+    students_created: int = 0
+    enrollments_created: int = 0
+    credentials_sent: int = 0
+    credentials_failed: int = 0
+
+    # Students created whose credential email did not go out. The account
+    # exists; the administrator resends from the student's row.
+    undelivered: List[StudentImportRowError] = Field(default_factory=list)
+    # Rows that could not be created at all, if the roll changed since preview.
+    failed: List[StudentImportRowError] = Field(default_factory=list)
+
+    detail: str = ""

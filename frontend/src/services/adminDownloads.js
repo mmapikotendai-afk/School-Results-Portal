@@ -10,6 +10,10 @@ import { downloadFile } from '@/services/download'
 const download = downloadFile
 
 export const adminDownloads = {
+  /** The blank CSV an administrator fills in to enrol a whole class. */
+  studentImportTemplate: () =>
+    download('/admin/students/import/template.csv', 'student-import-template.csv'),
+
   /** One student, one examination. */
   studentResultsCsv: (studentId, examinationId, label = 'results') =>
     download(

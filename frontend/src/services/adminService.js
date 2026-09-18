@@ -151,3 +151,53 @@ export const resetRequestService = {
   decline: (id, note) =>
     unwrap(apiClient.post(`/admin/reset-requests/${id}/decline`, { note: note || null })),
 }
+
+/**
+ * Bulk student enrollment from a CSV file.
+ *
+ * Separate from the teacher's result import on purpose: this one creates
+ * students, accounts and subject enrollments, and never touches marks.
+ *
+ * The class, year and subjects travel as form fields beside the file, because
+ * the file deliberately does not carry a class - the one chosen on screen
+ * applies to every row.
+ */
+export const studentImportService = {
+  /** Validate the file and report on every row. Creates nothing. */
+  preview: ({ file, classId, academicYearId, subjectIds, checkDeliverable = false }) => {
+    const body = new FormData()
+    body.append('file', file)
+    body.append('class_id', String(classId))
+    if (academicYearId) body.append('academic_year_id', String(academicYearId))
+    body.append('subject_ids', (subjectIds ?? []).join(','))
+    body.append('check_deliverable', String(checkDeliverable))
+    return unwrap(
+      apiClient.post('/admin/students/import/preview', body, {
+        // Let the browser set the multipart boundary.
+        headers: { 'Content-Type': undefined },
+      }),
+    )
+  },
+
+  /**
+   * Create every student in the file.
+   *
+   * Given a longer deadline than the default: each student is created and
+   * then emailed their credentials, so a full class takes appreciably longer
+   * than an ordinary request. Timing out here would leave the administrator
+   * unsure how much of the class had been created.
+   */
+  commit: ({ file, classId, academicYearId, subjectIds }) => {
+    const body = new FormData()
+    body.append('file', file)
+    body.append('class_id', String(classId))
+    if (academicYearId) body.append('academic_year_id', String(academicYearId))
+    body.append('subject_ids', (subjectIds ?? []).join(','))
+    return unwrap(
+      apiClient.post('/admin/students/import', body, {
+        headers: { 'Content-Type': undefined },
+        timeout: 5 * 60 * 1000,
+      }),
+    )
+  },
+}
