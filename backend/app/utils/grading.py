@@ -13,28 +13,32 @@ Number = Union[int, float, Decimal]
 
 # (minimum percentage inclusive, grade symbol, remark)
 O_LEVEL_BANDS: List[Tuple[int, str, str]] = [
-    (75, "A", "Distinction"),
-    (70, "B", "Merit"),
-    (60, "C", "Credit"),
-    (50, "D", "Pass"),
-    (40, "E", "Pass"),
-    (0, "U", "Ungraded"),
+    (75, "A", "Excellent"),
+    (65, "B", "Very Good"),
+    (50, "C", "Good"),
+    (40, "D", "Satisfactory"),
+    (30, "E", "Pass"),
+    (0, "U", "Fail"),
 ]
 
 A_LEVEL_BANDS: List[Tuple[int, str, str]] = [
-    (80, "A", "Excellent"),
-    (70, "B", "Very good"),
-    (60, "C", "Good"),
-    (50, "D", "Satisfactory"),
-    (40, "E", "Marginal pass"),
-    (35, "O", "Subsidiary pass"),
-    (0, "F", "Fail"),
+    (75, "A", "Excellent"),
+    (65, "B", "Very Good"),
+    (50, "C", "Good"),
+    (40, "D", "Satisfactory"),
+    (30, "E", "Pass"),
+    (0, "U", "Fail"),
 ]
 
 # Remarks this module used to generate, before the scale moved into the
 # database. Recalculation needs to recognise them as system-written so it can
 # replace them; without this a result keeps a remark from a retired scale.
-LEGACY_REMARKS = {
+RETIRED_SYSTEM_REMARKS = {
+    "Distinction", "Merit", "Credit", "Needs improvement", "Ungraded",
+    "Very good", "Marginal pass", "Subsidiary pass",
+}
+
+LEGACY_REMARKS = RETIRED_SYSTEM_REMARKS | {
     remark
     for bands in (O_LEVEL_BANDS, A_LEVEL_BANDS)
     for _, _, remark in bands
@@ -46,10 +50,7 @@ BANDS_BY_LEVEL = {
 }
 
 # The lowest symbol at each level that still counts as a pass.
-PASSING_GRADES = {
-    EducationLevel.O_LEVEL: {"A", "B", "C", "D", "E"},
-    EducationLevel.A_LEVEL: {"A", "B", "C", "D", "E"},
-}
+PASSING_GRADES = {level: {"A", "B", "C", "D", "E"} for level in EducationLevel}
 
 
 def score_to_grade(

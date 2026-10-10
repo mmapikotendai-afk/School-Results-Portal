@@ -254,6 +254,7 @@ class ReportCardPDF(FPDF):
             self.set_xy(x, y + 2)
             self.set_font("Times", "B", 8.5)
             self.cell(width, 4, label, align="C")
+            self.set_xy(x, y + 6)
             self.set_font("Times", "", 7.8)
             self.cell(width, 4, "Signature & Date", align="C")
         self.set_y(y + 13)
