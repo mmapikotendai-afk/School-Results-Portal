@@ -8,6 +8,18 @@ from app.auth.session import attach_session, csrf_is_valid
 from app.config import settings
 
 
+def test_database_url_is_a_complete_hosted_database_configuration():
+    """Render uses DATABASE_URL; separate MYSQL_* values are not also required."""
+    from app.config import Settings
+
+    hosted = Settings(
+        SECRET_KEY="x" * 48,
+        DATABASE_URL="mysql+pymysql://user:password@example.com:3306/portal",
+        MYSQL_USER="",
+    )
+    assert hosted.is_configured
+
+
 def test_cookies_are_session_only_and_secure_in_production(monkeypatch):
     monkeypatch.setattr(settings, "ENVIRONMENT", "production")
     response = Response()

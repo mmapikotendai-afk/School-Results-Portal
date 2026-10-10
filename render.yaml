@@ -11,6 +11,7 @@ services:
     runtime: python
     plan: free
     region: frankfurt          # nearest of Render's regions to Zimbabwe
+    branch: main
     rootDir: backend
 
     # init_db creates any missing tables and, on an empty database, the first
@@ -38,7 +39,9 @@ services:
 
       # Everything below is set in the Render dashboard, never in this file.
       # sync: false keeps the blueprint from overwriting them on each deploy.
-      - key: DATABASE_URL       # the Neon connection string
+      # Use a SQLAlchemy URL for the hosted database, for example
+      # mysql+pymysql://USER:PASSWORD@HOST:3306/DATABASE?charset=utf8mb4.
+      - key: DATABASE_URL
         sync: false
       - key: SECRET_KEY
         sync: false

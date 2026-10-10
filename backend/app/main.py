@@ -34,8 +34,8 @@ async def lifespan(app: FastAPI):
 
     if not settings.is_configured:
         logger.warning(
-            "Incomplete configuration: set SECRET_KEY and MYSQL_* in backend/.env "
-            "(copy backend/.env.example to backend/.env)."
+            "Incomplete configuration: set SECRET_KEY and either DATABASE_URL "
+            "or MYSQL_* connection variables."
         )
 
     if settings.DEBUG and settings.ENVIRONMENT.lower() in {"production", "prod"}:

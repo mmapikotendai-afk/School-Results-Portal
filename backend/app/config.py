@@ -363,7 +363,10 @@ class Settings(BaseSettings):
     @property
     def is_configured(self) -> bool:
         """True when the minimum required secrets have been supplied."""
-        return bool(self.SECRET_KEY) and bool(self.MYSQL_USER)
+        # A hosted deployment normally provides one complete DATABASE_URL.
+        # Requiring MYSQL_USER as well made a correctly configured production
+        # service report itself as incomplete even though DATABASE_URL wins.
+        return bool(self.SECRET_KEY) and bool(self.DATABASE_URL or self.MYSQL_USER)
 
 
 
