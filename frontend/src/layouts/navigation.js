@@ -14,11 +14,12 @@ import { ROLES } from '@/utils/roles'
  */
 export const NAVIGATION = {
   [ROLES.ADMIN]: [
-    { section: null, items: [{ to: '/admin/dashboard', label: 'Dashboard', icon: 'gauge-high' }] },
+    { section: null, items: [{ to: '/admin/dashboard', label: 'Workspace', icon: 'gauge-high' }] },
     {
       section: 'People',
       items: [
         { to: '/admin/students', label: 'Students', icon: 'user-graduate' },
+        { to: '/admin/progression', label: 'Progression', icon: 'arrow-right-arrow-left' },
         { to: '/admin/teachers', label: 'Teachers', icon: 'users' },
         { to: '/admin/reset-requests', label: 'Password Resets', icon: 'lock' },
       ],
@@ -51,7 +52,7 @@ export const NAVIGATION = {
     {
       section: null,
       items: [
-        { to: '/teacher/dashboard', label: 'Dashboard', icon: 'gauge-high' },
+        { to: '/teacher/dashboard', label: 'Teaching desk', icon: 'gauge-high' },
         { to: '/teacher/results', label: 'My Results', icon: 'table-list' },
         { to: '/teacher/upload', label: 'Upload Results', icon: 'cloud-arrow-up' },
         { to: '/teacher/submissions', label: 'Submission Status', icon: 'list-check' },
@@ -65,7 +66,7 @@ export const NAVIGATION = {
     {
       section: null,
       items: [
-        { to: '/student/dashboard', label: 'Dashboard', icon: 'gauge-high' },
+        { to: '/student/dashboard', label: 'Academic record', icon: 'gauge-high' },
         { to: '/student/results', label: 'My Results', icon: 'table-list' },
         { to: '/student/previous', label: 'Previous Results', icon: 'clock-rotate-left' },
         { to: '/student/downloads', label: 'Downloads', icon: 'download' },

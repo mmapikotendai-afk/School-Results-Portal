@@ -1,28 +1,14 @@
 import { cx } from '@/utils/format'
 import { statusLabel } from '@/utils/constants'
 
-/**
- * A status is letterspaced type sitting on a 2px rule, not a filled pill.
- *
- * Three reasons it is drawn this way. Report cards and marksheets get
- * printed, and a tinted pill either eats toner or vanishes; a rule survives
- * both. A screen listing forty submissions turns forty pills into confetti,
- * where forty short rules stay quiet. And the colour is carried by the text
- * itself, so the status is still readable in greyscale — the meaning never
- * depends on the colour alone.
- */
 const TONES = {
-  neutral: 'text-ink-400',
-  brand: 'text-brand-800',
-  success: 'text-success-600',
-  warning: 'text-warning-600',
-  danger: 'text-danger-600',
+  neutral: 'bg-ink-100 text-ink-600',
+  brand: 'bg-brand-50 text-brand-800',
+  success: 'bg-success-50 text-success-700',
+  warning: 'bg-warning-50 text-warning-700',
+  danger: 'bg-danger-50 text-danger-700',
 }
 
-/**
- * Maps every backend status value onto one colour, so an examination, a
- * submission and an enrollment all read consistently across the portal.
- */
 const STATUS_TONES = {
   // Examination lifecycle
   DRAFT: 'neutral',

@@ -1,54 +1,21 @@
 import { Link, Outlet } from 'react-router-dom'
-
-import ApiStatusBadge from '@/components/common/ApiStatusBadge'
 import Logo from '@/components/common/Logo'
 import { SCHOOL } from '@/utils/constants'
 
-/**
- * Single-column shell for the sign-in screen: the form alone, centred in the
- * viewport at every breakpoint.
- *
- * The crest stands on its own above the form rather than beside a wordmark:
- * it already carries the school motto, and setting more type next to it only
- * competes with the heading below.
- *
- * The form sits inside a ruled plate rather than floating on the page.
- * Signing in is the moment the portal states who issued it, so the frame,
- * the crest and the motto do that work together.
- */
 export function AuthLayout() {
-  return (
-    <div className="flex min-h-dvh flex-col">
-      <div className="masthead-rule" aria-hidden="true" />
-
-      <main className="flex flex-1 flex-col items-center justify-center px-5 py-12 sm:px-8">
-        <div className="w-full max-w-md">
-          <Link to="/" className="mb-8 flex justify-center">
-            <Logo size="xl" showText={false} />
-          </Link>
-
-          <div className="border-ink-900 border bg-white p-8 sm:p-10">
-            <Outlet />
-          </div>
-
-          {SCHOOL.motto && (
-            <p className="text-ink-500 mt-6 text-center font-serif text-sm italic">
-              {SCHOOL.motto}
-            </p>
-          )}
-        </div>
-      </main>
-
-      {/* DEVELOPMENT ONLY - delete this block before deployment.
-          Proof that the browser reached FastAPI and that MySQL answered behind
-          it. Parked in the corner so it reports without taking part in the
-          page: sign-in is the school introducing itself, and a build number
-          does not belong in that. */}
-      <div className="pointer-events-none fixed bottom-3 left-3 z-40">
-        <ApiStatusBadge className="pointer-events-auto scale-90 opacity-75 transition-opacity hover:opacity-100" />
+  return <div className="auth-shell min-h-dvh lg:grid lg:grid-cols-[1fr_1.1fr]">
+    <aside className="auth-identity flex flex-col justify-between border-b border-ink-200 p-6 sm:p-10 lg:border-r lg:border-b-0 lg:p-14">
+      <Link to="/" aria-label="School home" className="w-fit"><Logo size="lg" /></Link>
+      <div className="hidden py-16 lg:block">
+        <h2 className="max-w-[12ch] font-serif text-[clamp(40px,4vw,64px)] leading-[1.08] font-normal tracking-[-0.035em]">Every result.<br />Part of your story.</h2>
+        <p className="mt-7 max-w-sm text-base leading-relaxed text-ink-600">A shared place for teachers, students and the school office to keep academic records clear and connected.</p>
+        <div className="mt-12 h-px w-16 bg-accent-700" />
       </div>
-    </div>
-  )
+      <div className="hidden text-sm text-ink-500 lg:block"><p className="font-medium text-ink-700">{SCHOOL.name}</p>{SCHOOL.motto && <p className="mt-2 font-serif italic">{SCHOOL.motto}</p>}</div>
+    </aside>
+    <main className="flex items-center justify-center px-6 py-14 sm:px-10 lg:py-20">
+      <div className="w-full max-w-[390px]"><Outlet /><p className="mt-10 border-t border-ink-200 pt-5 text-xs leading-relaxed text-ink-500">Your school account gives you access to the records and tools assigned to your role.</p></div>
+    </main>
+  </div>
 }
-
 export default AuthLayout

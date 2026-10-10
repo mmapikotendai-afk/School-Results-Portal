@@ -78,9 +78,21 @@ class SubmissionService:
         subject the schema has no way to attribute a mark to one of them, so
         they share the progress figure for it.
         """
+        if exam.term is None:
+            return {}
+
         rows = (
             self.db.query(Result.subject_id, func.count(Result.id))
-            .filter(Result.examination_id == exam.id)
+            .join(Student, Student.id == Result.student_id)
+            .join(User, User.id == Student.user_id)
+            .join(StudentSubject, (StudentSubject.student_id == Result.student_id)
+                  & (StudentSubject.subject_id == Result.subject_id))
+            .filter(
+                Result.examination_id == exam.id,
+                StudentSubject.academic_year_id == exam.term.academic_year_id,
+                StudentSubject.status == EnrollmentStatus.ACTIVE,
+                User.is_active.is_(True),
+            )
             .group_by(Result.subject_id)
             .all()
         )

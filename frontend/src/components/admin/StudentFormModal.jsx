@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-import CredentialDeliveryPanel from '@/components/admin/CredentialDeliveryPanel'
+import CredentialSlips from '@/components/admin/CredentialSlips'
 import { Alert, Button, Input, Modal, Select, SubjectPicker } from '@/components/ui'
 import { studentService } from '@/services/adminService'
 import { getErrorMessage } from '@/services/apiClient'
@@ -13,13 +13,11 @@ const GENDERS = [
 
 function initialForm(student) {
   return {
-    student_number: student?.student_number ?? '',
     first_name: student?.first_name ?? '',
     last_name: student?.last_name ?? '',
     date_of_birth: student?.date_of_birth ?? '',
     gender: student?.gender ?? '',
     class_id: student?.school_class?.id ?? '',
-    email: student?.email ?? '',
   }
 }
 
@@ -49,19 +47,11 @@ export function StudentFormModal({ open, mode, student, classes, subjects, onClo
 
   function validate() {
     const errors = {}
-    if (!form.student_number.trim()) errors.student_number = 'A student number is required.'
     if (!form.first_name.trim()) errors.first_name = 'Enter a first name.'
     if (!form.last_name.trim()) errors.last_name = 'Enter a last name.'
-    // Required on creation: it is where the temporary password is sent, so an
-    // account without one could never be signed in to. On edit it is already
-    // set, and a blank field means "leave it alone".
-    if (!isEdit) {
-      if (!form.email.trim()) {
-        errors.email = "Enter the email address the student gave you."
-      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
-        errors.email = 'Enter a valid email address.'
-      }
-    }
+    if (!isEdit && !form.date_of_birth) errors.date_of_birth = 'Enter the date of birth.'
+    if (!isEdit && !form.gender) errors.gender = 'Choose a gender.'
+    if (!form.class_id) errors.class_id = 'Choose a class.'
     if (form.date_of_birth && form.date_of_birth > new Date().toISOString().slice(0, 10)) {
       errors.date_of_birth = 'Date of birth cannot be in the future.'
     }
@@ -77,14 +67,12 @@ export function StudentFormModal({ open, mode, student, classes, subjects, onClo
     // Empty strings mean "not provided", which is not the same as clearing a
     // value, so they are stripped rather than sent as null.
     const payload = {
-      student_number: form.student_number.trim(),
       first_name: form.first_name.trim(),
       last_name: form.last_name.trim(),
       date_of_birth: form.date_of_birth || null,
       gender: form.gender || null,
       class_id: form.class_id ? Number(form.class_id) : null,
     }
-    if (form.email.trim()) payload.email = form.email.trim().toLowerCase()
 
     setSaving(true)
     try {
@@ -96,8 +84,6 @@ export function StudentFormModal({ open, mode, student, classes, subjects, onClo
           ...payload,
           subject_ids: selectedSubjects,
         })
-        // The dialog stays open on the delivery outcome: if the email did not
-        // arrive, the administrator can resend before leaving this screen.
         setCreated(result)
       }
     } catch (err) {
@@ -121,11 +107,7 @@ export function StudentFormModal({ open, mode, student, classes, subjects, onClo
           </Button>
         }
       >
-        <CredentialDeliveryPanel
-          delivery={created.delivery}
-          accountType="Student"
-          onResend={() => studentService.resendCredentials(created.id)}
-        />
+        <CredentialSlips slips={[created.credential]} autoDownload />
       </Modal>
     )
   }
@@ -158,24 +140,23 @@ export function StudentFormModal({ open, mode, student, classes, subjects, onClo
 
       <form onSubmit={handleSubmit} noValidate className="space-y-5">
         <div className="grid gap-4 sm:grid-cols-2">
-          <Input
-            label="Student number"
-            name="student_number"
-            value={form.student_number}
-            onChange={handleChange}
-            error={fieldErrors.student_number}
-            hint="Must be unique. Used to match uploaded results."
-            placeholder="STU-0001"
-            disabled={saving}
-            required
-          />
+          {isEdit ? (
+            <Input label="Student number" value={student.student_number} disabled />
+          ) : (
+            <div className="rounded-lg bg-ink-50 px-4 py-3 text-sm text-ink-600">
+              <span className="font-medium text-ink-900">Student number</span>
+              <p className="mt-1">Generated automatically when the admission is saved.</p>
+            </div>
+          )}
           <Select
             label="Class"
             name="class_id"
             value={form.class_id}
             onChange={handleChange}
-            placeholder="Not assigned"
+            placeholder="Choose a class"
             disabled={saving}
+            required={!isEdit}
+            error={fieldErrors.class_id}
             options={classes.map((c) => ({
               value: c.id,
               label: `${c.name} (${c.level === 'O_LEVEL' ? 'O-Level' : 'A-Level'})`,
@@ -213,6 +194,7 @@ export function StudentFormModal({ open, mode, student, classes, subjects, onClo
             onChange={handleChange}
             error={fieldErrors.date_of_birth}
             disabled={saving}
+            required={!isEdit}
           />
           <Select
             label="Gender"
@@ -222,28 +204,10 @@ export function StudentFormModal({ open, mode, student, classes, subjects, onClo
             placeholder="Not recorded"
             options={GENDERS}
             disabled={saving}
+            error={fieldErrors.gender}
+            required={!isEdit}
           />
         </div>
-
-        <Input
-          label="Email address"
-          name="email"
-          type="email"
-          icon="envelope"
-          autoCapitalize="none"
-          spellCheck="false"
-          placeholder="student@example.com"
-          value={form.email}
-          onChange={handleChange}
-          error={fieldErrors.email}
-          hint={
-            isEdit
-              ? 'Used to sign in.'
-              : 'The address the student gave you. Their temporary password is sent here.'
-          }
-          disabled={saving}
-          required={!isEdit}
-        />
 
         {!isEdit && (
           <div className="border-ink-200 border-t pt-5">

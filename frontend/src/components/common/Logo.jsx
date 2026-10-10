@@ -42,7 +42,7 @@ export function Logo({ size = 'md', inverted = false, showText = true, className
           </p>
           <p
             className={cx(
-              'text-[10px] font-bold tracking-[0.16em] uppercase',
+              'mt-1 text-[10px] font-medium tracking-wide',
               inverted ? 'text-brand-200' : 'text-ink-500',
             )}
           >

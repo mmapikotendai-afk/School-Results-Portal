@@ -5,6 +5,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import EmptyState from '@/components/common/EmptyState'
 import PageHeader from '@/components/common/PageHeader'
 import Toast from '@/components/common/Toast'
+import CredentialSlips from '@/components/admin/CredentialSlips'
 import {
   Alert,
   Badge,
@@ -12,6 +13,7 @@ import {
   Card,
   CardBody,
   CardHeader,
+  Input,
   PageLoader,
   Select,
   SubjectPicker,
@@ -72,6 +74,7 @@ export function StudentImportPage() {
   const [busy, setBusy] = useState(null)
   const [error, setError] = useState(null)
   const [showAllRows, setShowAllRows] = useState(false)
+  const [adminPassword, setAdminPassword] = useState('')
 
   const input = useRef(null)
 
@@ -132,7 +135,9 @@ export function StudentImportPage() {
         classId,
         academicYearId: effectiveYearId || null,
         subjectIds,
+        adminPassword,
       })
+      setAdminPassword('')
       setResult(outcome)
       setReport(null)
     } catch (err) {
@@ -174,36 +179,12 @@ export function StudentImportPage() {
             <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
               <Figure label="Students" value={result.students_created} tone="success" />
               <Figure label="Subject enrollments" value={result.enrollments_created} />
-              <Figure label="Credentials sent" value={result.credentials_sent} tone="success" />
-              <Figure
-                label="Email failed"
-                value={result.credentials_failed}
-                tone={result.credentials_failed ? 'danger' : 'muted'}
-              />
+              <Figure label="Credentials issued" value={result.credentials_issued} tone="success" />
             </div>
 
-            <Alert tone={result.credentials_failed ? 'warning' : 'success'}>
+            <Alert tone="success">
               {result.detail}
             </Alert>
-
-            {result.undelivered?.length > 0 && (
-              <div className="border-warning-300 bg-warning-50 mt-4 rounded-lg border p-4">
-                <p className="text-warning-900 text-sm font-semibold">
-                  These students were created, but their email did not arrive
-                </p>
-                <p className="text-warning-800 mt-1 text-sm">
-                  Their accounts exist. Use <strong>Resend credentials</strong> on each
-                  student&rsquo;s row, which issues a fresh password.
-                </p>
-                <ul className="text-warning-900 mt-3 space-y-1 text-sm">
-                  {result.undelivered.map((u) => (
-                    <li key={u.row} className="font-mono text-xs">
-                      {u.student_number} — {u.message}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
 
             {result.failed?.length > 0 && (
               <Alert tone="danger" className="mt-4" title="Not created">
@@ -215,6 +196,12 @@ export function StudentImportPage() {
                   ))}
                 </ul>
               </Alert>
+            )}
+
+            {result.credentials?.length > 0 && (
+              <div className="mt-5">
+                <CredentialSlips slips={result.credentials} autoDownload />
+              </div>
             )}
           </CardBody>
         </Card>
@@ -303,7 +290,6 @@ export function StudentImportPage() {
                   <Th>Row</Th>
                   <Th>Student number</Th>
                   <Th>Name</Th>
-                  <Th>Email</Th>
                   <Th>Status</Th>
                 </tr>
               </thead>
@@ -317,7 +303,6 @@ export function StudentImportPage() {
                     <td className="text-ink-700 px-3 py-2">
                       {[r.first_name, r.last_name].filter(Boolean).join(' ') || '—'}
                     </td>
-                    <td className="text-ink-600 px-3 py-2 text-xs">{r.email || '—'}</td>
                     <td className="px-3 py-2">
                       <span
                         className={cx(
@@ -350,10 +335,20 @@ export function StudentImportPage() {
                 ? 'Nothing has been created yet.'
                 : 'Fix the file and upload it again.'}
             </p>
+            <div className="min-w-[16rem]">
+              <Input
+                label="Administrator password"
+                type="password"
+                autoComplete="current-password"
+                value={adminPassword}
+                onChange={(event) => setAdminPassword(event.target.value)}
+                hint="Required before issuing a batch of passwords."
+              />
+            </div>
             <Button
               onClick={confirmImport}
               loading={busy === 'import'}
-              disabled={!report.can_import}
+              disabled={!report.can_import || !adminPassword}
               icon="check"
             >
               {busy === 'import'
@@ -448,7 +443,7 @@ export function StudentImportPage() {
         <CardHeader
           icon="file-csv"
           title="Student CSV"
-          description="student_number, first_name, last_name, email, date_of_birth, gender"
+          description="first_name, last_name, date_of_birth, gender"
         />
         <CardBody>
           <div className="bg-brand-50 mb-4 flex items-start gap-3 rounded-lg px-4 py-3">
@@ -459,8 +454,7 @@ export function StudentImportPage() {
             />
             <div className="min-w-0 flex-1 text-sm">
               <p className="text-brand-900">
-                Start from the template. Every student needs an email address: their
-                temporary password is sent there and is never stored.
+                Start from the template. Student numbers are generated when you confirm.
               </p>
               <button
                 type="button"
@@ -521,6 +515,7 @@ export function StudentImportPage() {
             <input
               ref={input}
               type="file"
+              aria-label="Choose a CSV file"
               accept=".csv,text/csv"
               className="sr-only"
               onChange={(e) => {

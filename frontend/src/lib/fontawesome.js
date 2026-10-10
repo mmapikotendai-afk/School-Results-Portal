@@ -12,6 +12,7 @@ import '@fortawesome/fontawesome-svg-core/styles.css'
 
 import {
   faArrowRight,
+  faArrowRightArrowLeft,
   faArrowRightFromBracket,
   faBan,
   faBars,
@@ -38,6 +39,7 @@ import {
   faMagnifyingGlass,
   faMinus,
   faPenToSquare,
+  faPaperPlane,
   faPlus,
   faRotate,
   faSchool,
@@ -55,6 +57,8 @@ import {
   faCalendarDays,
   faChartColumn,
   faChevronDown,
+  faChevronRight,
+  faChevronLeft,
   faCircleXmark,
   faClipboardCheck,
   faClockRotateLeft,
@@ -80,6 +84,7 @@ config.autoAddCss = false
 
 library.add(
   faArrowRight,
+  faArrowRightArrowLeft,
   faArrowRightFromBracket,
   faBan,
   faBars,
@@ -106,6 +111,7 @@ library.add(
   faMagnifyingGlass,
   faMinus,
   faPenToSquare,
+  faPaperPlane,
   faPlus,
   faRotate,
   faSchool,
@@ -123,6 +129,8 @@ library.add(
   faCalendarDays,
   faChartColumn,
   faChevronDown,
+  faChevronRight,
+  faChevronLeft,
   faCircleXmark,
   faClipboardCheck,
   faClockRotateLeft,

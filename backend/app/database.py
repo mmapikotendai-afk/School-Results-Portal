@@ -58,7 +58,7 @@ def check_database_connection() -> tuple[bool, str | None]:
         return True, None
     except Exception as exc:  # noqa: BLE001 - surfaced through the health endpoint
         logger.warning("Database health check failed: %s", exc)
-        return False, str(exc)
+        return False, "The database is currently unavailable."
 
 
 def init_db() -> None:

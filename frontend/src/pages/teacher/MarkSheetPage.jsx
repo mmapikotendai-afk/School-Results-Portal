@@ -5,7 +5,7 @@ import { Link, useParams } from 'react-router-dom'
 import PageHeader from '@/components/common/PageHeader'
 import Toast from '@/components/common/Toast'
 import UploadDialog from '@/components/teacher/UploadDialog'
-import { Alert, Badge, Button, Card, Input, PageLoader } from '@/components/ui'
+import { DataTable, Alert, Badge, Button, Card, Input, PageLoader } from '@/components/ui'
 import useAsyncData from '@/hooks/useAsyncData'
 import useDocumentTitle from '@/hooks/useDocumentTitle'
 import useToast from '@/hooks/useToast'
@@ -232,74 +232,20 @@ export function MarkSheetPage() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[40rem] border-collapse text-sm">
-              <thead>
-                <tr className="border-ink-200 border-b">
-                  <th scope="col" className="text-ink-500 w-12 px-5 py-3 text-left text-xs font-semibold uppercase">
-                    #
-                  </th>
-                  <th scope="col" className="text-ink-500 px-5 py-3 text-left text-xs font-semibold uppercase">
-                    Student
-                  </th>
-                  <th scope="col" className="text-ink-500 w-32 px-5 py-3 text-left text-xs font-semibold uppercase">
-                    Mark
-                  </th>
-                  <th scope="col" className="text-ink-500 w-20 px-5 py-3 text-left text-xs font-semibold uppercase">
-                    Grade
-                  </th>
-                  <th scope="col" className="text-ink-500 px-5 py-3 text-left text-xs font-semibold uppercase">
-                    Remark
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-ink-100 divide-y">
-                {sheet.rows.map((row, index) => {
-                  const draft = drafts[row.student_id]
-                  const value =
-                    draft !== undefined ? draft : row.marks == null ? '' : String(Number(row.marks))
-                  const bad = invalid(value)
-
-                  return (
-                    <tr key={row.student_id} className={cx(draft !== undefined && 'bg-brand-50/40')}>
-                      <td className="text-ink-400 px-5 py-2.5 tabular-nums">{index + 1}</td>
-                      <td className="px-5 py-2.5">
-                        <p className="text-ink-900 font-medium">{row.student_name}</p>
-                        <p className="text-ink-400 font-mono text-xs">{row.student_number}</p>
-                      </td>
-                      <td className="px-5 py-2.5">
-                        {sheet.can_edit ? (
-                          <Input
-                            type="number"
-                            min={MIN_MARK}
-                            max={MAX_MARK}
-                            step="0.01"
-                            value={value}
-                            onChange={(e) => setDraft(row.student_id, e.target.value)}
-                            error={bad ? 'Enter 0 to 100' : undefined}
-                            aria-label={`Mark for ${row.student_name}`}
-                            placeholder="—"
-                          />
-                        ) : (
-                          <span className="text-ink-900 font-semibold tabular-nums">
-                            {row.marks == null ? '—' : Number(row.marks).toFixed(0)}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-5 py-2.5">
-                        {row.grade ? (
-                          <Badge tone="brand">{row.grade}</Badge>
-                        ) : (
-                          <span className="text-ink-400">—</span>
-                        )}
-                      </td>
-                      <td className="text-ink-600 px-5 py-2.5">{row.remarks ?? '—'}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            rows={sheet.rows}
+            rowKey={row => row.student_id}
+            columns={[
+              { key: 'student_name', header: 'Student', primary: true, render: row => <div><p className="font-medium text-ink-900">{row.student_name}</p><p className="mt-1 text-xs text-ink-500">{row.student_number}</p></div> },
+              { key: 'marks', header: 'Mark /100', render: row => {
+                const draft = drafts[row.student_id]
+                const value = draft !== undefined ? draft : row.marks == null ? '' : String(Number(row.marks))
+                return sheet.can_edit ? <Input type="number" min={MIN_MARK} max={MAX_MARK} step="0.01" value={value} onChange={e => setDraft(row.student_id, e.target.value)} error={invalid(value) ? 'Enter 0 to 100' : undefined} aria-label={'Mark for ' + row.student_name} placeholder="?" className={cx('max-w-28', draft !== undefined && 'bg-brand-50')} /> : <span className="font-semibold tabular-nums">{row.marks == null ? '?' : Number(row.marks).toFixed(0)}</span>
+              } },
+              { key: 'grade', header: 'Grade', render: row => row.grade ? <Badge tone="brand">{row.grade}</Badge> : '?' },
+              { key: 'remarks', header: 'Remark', render: row => row.remarks ?? '?' },
+            ]}
+          />
         )}
       </Card>
 

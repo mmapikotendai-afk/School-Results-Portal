@@ -1,8 +1,7 @@
 """Password reset requests, raised by the account holder and settled by the office.
 
-The portal issues accounts rather than letting people register, and a learner
-may have no mailbox of their own - STUDENT_EMAIL_DOMAIN exists precisely
-because of that. A self-service reset link would assume an inbox every user
+The portal issues accounts rather than letting people register, and students
+do not have email identities in the portal. A self-service reset link would assume an inbox every user
 controls privately, which is not true here, so a request is a row somebody in
 the office looks at rather than an email the system sends on its own.
 

@@ -10,7 +10,6 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.config import settings
 from app.database import get_db
 from app.dependencies.auth import require_admin
 from app.models.enums import ResetRequestStatus
@@ -97,8 +96,7 @@ def approve(
     # Same shape the Students and Teachers pages already read, so the admin UI
     # reports a reset from the queue exactly as it reports a manual resend.
     holder = row.user
-    domain = (settings.STUDENT_EMAIL_DOMAIN or "").strip().lower()
-    real_mailbox = bool(domain) and not holder.email.strip().lower().endswith(f"@{domain}")
+    real_mailbox = bool(holder.email)
 
     return CredentialDelivery(
         email=holder.email,

@@ -14,16 +14,20 @@ from fastapi import (
 )
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
-from app.config import settings
 from app.database import get_db
 from app.dependencies.auth import require_admin
-from app.models.enums import EnrollmentStatus
+from app.models.enums import EmailDeliveryStatus, EnrollmentStatus
 from app.models.student import Student
+from app.models.school_class import SchoolClass
+from app.models.user import User
 from app.schemas.catalog import ClassSummary, SubjectSummary
 from app.schemas.common import Page
 from app.schemas.people import (
     EnrollmentChange,
+    AdminReauthentication,
+    CredentialSlip,
     StudentImportReport,
     StudentImportResult,
     StatusUpdate,
@@ -32,16 +36,16 @@ from app.schemas.people import (
     StudentDetail,
     StudentRead,
     StudentUpdate,
+    StudentEnrollmentStatusUpdate,
     SubjectSelection,
 )
-from app.schemas.user import CredentialDelivery
 from app.services.academic_service import AcademicService
 from app.services.account_service import AccountService
 from app.services.people_service import StudentService
 from app.services import student_import_service
 from app.services.student_import_service import StudentImportService
-from app.services import email_service
-from app.services.provisioning_service import ProvisioningService
+from app.services.student_credentials_service import StudentCredentialsService
+from app.utils.security import generate_temporary_password, hash_password, verify_password
 
 router = APIRouter(
     prefix="/admin/students",
@@ -50,17 +54,20 @@ router = APIRouter(
 )
 
 
-def _to_read(student: Student, subject_count: int = 0) -> StudentRead:
+def _to_read(
+    student: Student, subject_count: int = 0, enrollment_status=None
+) -> StudentRead:
     return StudentRead(
         id=student.id,
         student_number=student.student_number,
+        admission_year=student.admission_year,
         first_name=student.first_name,
         last_name=student.last_name,
         full_name=student.full_name,
         date_of_birth=student.date_of_birth,
         gender=student.gender,
-        email=student.user.email,
         is_active=student.user.is_active,
+        enrollment_status=enrollment_status,
         school_class=(
             ClassSummary.model_validate(student.school_class)
             if student.school_class
@@ -82,7 +89,12 @@ def _to_detail(db: Session, student: Student, year_id: Optional[int]) -> Student
             summary = SubjectSummary.model_validate(row.subject)
             (current if row.status == EnrollmentStatus.ACTIVE else dropped).append(summary)
 
-    base = _to_read(student, subject_count=len(current))
+    enrollment = service.year_enrollment(student.id, year_id)
+    base = _to_read(
+        student,
+        subject_count=len(current),
+        enrollment_status=enrollment.status if enrollment else None,
+    )
     return StudentDetail(
         **base.model_dump(),
         subjects=sorted(current, key=lambda s: s.name),
@@ -100,31 +112,9 @@ def _get(db: Session, student_id: int) -> Student:
     return student
 
 
-def _delivery(user, result) -> CredentialDelivery:
-    """Turn a delivery attempt into the shape the admin UI reads.
-
-    Carries the address and the outcome. It never carries the password, and
-    there is no field it could be put in.
-    """
-    return CredentialDelivery(
-        email=user.email,
-        status=result.status,
-        sent=result.sent,
-        sent_at=user.email_sent_at,
-        detail=result.detail,
-        can_resend=_has_real_mailbox(user.email),
-    )
-
-
-def _has_real_mailbox(email: str) -> bool:
-    """False for a derived sign-in identifier, which routes nowhere."""
-    domain = (settings.STUDENT_EMAIL_DOMAIN or "").strip().lower()
-    return bool(domain) and not email.strip().lower().endswith(f"@{domain}")
-
-
 @router.get("", response_model=Page[StudentRead], summary="Search students")
 def list_students(
-    search: Optional[str] = Query(default=None, description="Name, student number or email"),
+    search: Optional[str] = Query(default=None, description="Name or student number"),
     class_id: Optional[int] = Query(default=None),
     include_inactive: bool = Query(default=True),
     page: int = Query(default=1, ge=1),
@@ -147,6 +137,11 @@ def list_students(
             subject_count=len(service.active_subject_ids(student.id, year_id))
             if year_id
             else 0,
+            enrollment_status=(
+                service.year_enrollment(student.id, year_id).status
+                if year_id and service.year_enrollment(student.id, year_id)
+                else None
+            ),
         )
         for student in rows
     ]
@@ -159,62 +154,79 @@ def list_students(
     status_code=status.HTTP_201_CREATED,
     summary="Add a student",
 )
-def create_student(payload: StudentCreate, db: Session = Depends(get_db)) -> StudentCreated:
+def create_student(
+    payload: StudentCreate,
+    response: Response,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+) -> StudentCreated:
     """Create a student, their portal account, and their subject enrollment."""
     service = StudentService(db)
 
-    valid, problem = service.valid_subject_ids(payload.subject_ids)
+    school_class = db.get(SchoolClass, payload.class_id) if payload.class_id else None
+    valid, problem = service.valid_subject_ids(
+        payload.subject_ids, school_class.level if school_class else None
+    )
     if not valid:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=problem)
 
-    # Checked before anything is written: an address that cannot receive mail
-    # would produce a student nobody can ever sign in as, because the only
-    # copy of the password goes into the message.
-    undeliverable = email_service.verify_deliverable(str(payload.email))
-    if undeliverable:
+    try:
+        student, password, error = service.create(payload)
+    except IntegrityError as exc:
+        db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"That email address cannot receive mail. {undeliverable}",
-        )
-
-    student, password, error = service.create(payload)
+            status_code=status.HTTP_409_CONFLICT,
+            detail="The generated student number was just assigned. Submit the admission again.",
+        ) from exc
     if error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=error)
 
-    kept, result = ProvisioningService(db).deliver_or_discard(student.user, password)
-    del password
-    if not kept:
-        # The account was removed again, so the administrator can correct the
-        # address and re-submit rather than being left with a stranded row.
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=(
-                "The student was not added: their credentials could not be emailed. "
-                f"{result.error or result.detail}"
-            ),
-        )
+    credential = StudentCredentialsService(db).issue_slip(
+        student, password, admin.id, "ISSUED"
+    )
+    db.commit()
 
     year_id = service.academic.resolve_year_id(payload.academic_year_id)
     detail = _to_detail(db, student, year_id)
-    return StudentCreated(**detail.model_dump(), delivery=_delivery(student.user, result))
+    result_payload = StudentCreated(**detail.model_dump(), credential=credential)
+    del password
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    return result_payload
 
 
 @router.post(
-    "/{student_id}/resend-credentials",
-    response_model=CredentialDelivery,
-    summary="Resend login credentials to a student",
+    "/{student_id}/reset-credentials",
+    response_model=CredentialSlip,
+    summary="Issue a new one-time student credential slip",
 )
-def resend_student_credentials(
-    student_id: int, db: Session = Depends(get_db)
-) -> CredentialDelivery:
-    """Issue a fresh temporary password and email it.
-
-    The previous password stops working immediately, and any session opened
-    with it is ended.
-    """
+def reset_student_credentials(
+    student_id: int,
+    payload: AdminReauthentication,
+    response: Response,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+) -> CredentialSlip:
+    """After offline identity verification, issue a new temporary password."""
+    if not verify_password(payload.admin_password, admin.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrator re-authentication failed.",
+        )
     student = _get(db, student_id)
-    result = ProvisioningService(db).reissue_credentials(student.user)
-    return _delivery(student.user, result)
+    password = generate_temporary_password()
+    student.user.password_hash = hash_password(password)
+    student.user.must_change_password = True
+    student.user.token_version += 1
+    student.user.email_delivery_status = EmailDeliveryStatus.NOT_SENT
+    credential = StudentCredentialsService(db).issue_slip(
+        student, password, admin.id, "RESET"
+    )
+    db.commit()
+    del password
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    return credential
 
 
 # ------------------------------------------------- bulk import (CSV)
@@ -299,11 +311,14 @@ async def preview_student_import(
     summary="Create every student in a validated CSV",
 )
 async def commit_student_import(
+    response: Response,
     file: UploadFile = File(...),
     class_id: int = Form(...),
     academic_year_id: Optional[int] = Form(default=None),
     subject_ids: Optional[str] = Form(default=None),
+    admin_password: str = Form(...),
     db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
 ) -> StudentImportResult:
     """Validate once more, then create the students, accounts and enrollments.
 
@@ -312,6 +327,11 @@ async def commit_student_import(
     sends back. A file that no longer validates is refused whole.
     """
     chosen = _parse_subject_ids(subject_ids)
+    if not verify_password(admin_password, admin.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrator re-authentication failed.",
+        )
     service, school_class, year_id, subject_names = _import_target(
         db, class_id, academic_year_id, chosen
     )
@@ -324,7 +344,17 @@ async def commit_student_import(
             detail=report.detail or "That file cannot be imported.",
         )
 
-    return service.commit(report, school_class, year_id, chosen, subject_names)
+    try:
+        result = service.commit(
+            report, school_class, year_id, chosen, subject_names, admin.id
+        )
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Pragma"] = "no-cache"
+        return result
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
+        ) from exc
 
 
 async def _read_csv(file: UploadFile) -> bytes:
@@ -340,6 +370,23 @@ async def _read_csv(file: UploadFile) -> bytes:
             status_code=status.HTTP_400_BAD_REQUEST, detail="The file is empty."
         )
     return raw
+
+
+@router.post(
+    "/credential-batches/{batch_id}/consume",
+    summary="Mark a one-time credential batch as printed",
+)
+def consume_credential_batch(
+    batch_id: str,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    if not StudentCredentialsService(db).consume_batch(batch_id, admin.id):
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="These credentials have expired, were already printed, or belong to another administrator.",
+        )
+    return {"detail": "Credential batch marked as printed."}
 
 
 @router.get("/{student_id}", response_model=StudentDetail, summary="View a student")
@@ -380,6 +427,28 @@ def set_student_status(
     db.refresh(student)
 
     year_id = AcademicService(db).resolve_year_id(None)
+    return _to_detail(db, student, year_id)
+
+
+@router.patch(
+    "/{student_id}/enrollment-status",
+    response_model=StudentDetail,
+    summary="Update a student's status for an academic year",
+)
+def set_student_enrollment_status(
+    student_id: int,
+    payload: StudentEnrollmentStatusUpdate,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> StudentDetail:
+    student = _get(db, student_id)
+    service = StudentService(db)
+    _enrollment, error = service.set_enrollment_status(
+        student, payload.status, payload.academic_year_id, admin.id
+    )
+    if error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
+    year_id = service.academic.resolve_year_id(payload.academic_year_id)
     return _to_detail(db, student, year_id)
 
 

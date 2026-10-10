@@ -53,7 +53,7 @@ class UserRead(UserBase):
 
     model_config = ConfigDict(from_attributes=True)
 
-    email: str
+    email: Optional[str] = None
     id: int
     username: Optional[str] = None
     is_active: bool

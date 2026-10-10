@@ -33,6 +33,42 @@ class EducationLevel(str, enum.Enum):
     A_LEVEL = "A_LEVEL"
 
 
+class FormLevel(str, enum.Enum):
+    FORM_1 = "FORM_1"
+    FORM_2 = "FORM_2"
+    FORM_3 = "FORM_3"
+    FORM_4 = "FORM_4"
+    LOWER_6 = "LOWER_6"
+    UPPER_6 = "UPPER_6"
+
+    @property
+    def academic_level(self) -> EducationLevel:
+        return (
+            EducationLevel.A_LEVEL
+            if self in {FormLevel.LOWER_6, FormLevel.UPPER_6}
+            else EducationLevel.O_LEVEL
+        )
+
+    @property
+    def next_form(self):
+        order = [
+            FormLevel.FORM_1, FormLevel.FORM_2, FormLevel.FORM_3,
+            FormLevel.FORM_4, FormLevel.LOWER_6, FormLevel.UPPER_6,
+        ]
+        index = order.index(self)
+        return order[index + 1] if index + 1 < len(order) else None
+
+
+class ProgressionAction(str, enum.Enum):
+    CARRY_FORWARD = "CARRY_FORWARD"
+    CONFIRM_RETURN = "CONFIRM_RETURN"
+    PROMOTE = "PROMOTE"
+    REPEAT = "REPEAT"
+    CHANGE_CLASS = "CHANGE_CLASS"
+    O_LEVEL_TO_A_LEVEL = "O_LEVEL_TO_A_LEVEL"
+    STATUS_CHANGE = "STATUS_CHANGE"
+
+
 class SubjectLevel(str, enum.Enum):
     """Which level a subject belongs to.
 
@@ -71,6 +107,16 @@ class EnrollmentStatus(str, enum.Enum):
 
     ACTIVE = "ACTIVE"
     INACTIVE = "INACTIVE"
+
+
+class StudentEnrollmentStatus(str, enum.Enum):
+    """A student's standing for one academic year."""
+
+    ACTIVE = "ACTIVE"
+    PENDING_RETURN = "PENDING_RETURN"
+    TRANSFERRED_OUT = "TRANSFERRED_OUT"
+    WITHDRAWN_NOT_RETURNED = "WITHDRAWN_NOT_RETURNED"
+    COMPLETED = "COMPLETED"
 
 
 class SubmissionStatus(str, enum.Enum):

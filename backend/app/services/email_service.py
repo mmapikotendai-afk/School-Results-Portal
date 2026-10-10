@@ -43,7 +43,7 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 from app.config import settings
-from app.models.enums import EmailDeliveryStatus, UserRole
+from app.models.enums import EmailDeliveryStatus
 from app.models.user import User
 from app.services.email_templates import render_credentials_email
 
@@ -338,16 +338,8 @@ def _build_message(
 
 
 def _is_deliverable(email: str) -> bool:
-    """Whether an address is a real mailbox rather than a sign-in identifier.
-
-    A learner with no email of their own is given `<number>@<STUDENT_EMAIL_DOMAIN>`
-    so they still have something to sign in with. That address routes nowhere,
-    and sending to it would produce a bounce for every such student.
-    """
-    domain = (settings.STUDENT_EMAIL_DOMAIN or "").strip().lower()
-    return bool(email) and "@" in email and not (
-        domain and email.strip().lower().endswith(f"@{domain}")
-    )
+    """Whether a staff account has an email mailbox."""
+    return bool(email) and "@" in email
 
 
 def _account_number_for(user: User) -> Optional[Tuple[str, str]]:
@@ -393,13 +385,8 @@ def send_account_credentials(
 
     account_number = _account_number_for(user)
 
-    # Students sign in with their student number as readily as their address,
-    # so the email names whichever is the more useful to them.
     identifier_label = "Login Email"
     login_identifier = user.email
-    if user.role == UserRole.STUDENT and user.username:
-        identifier_label = "Login Email or Username"
-        login_identifier = f"{user.email}  ({user.username})"
 
     subject, html_body, text_body = render_credentials_email(
         school_name=settings.SCHOOL_NAME,

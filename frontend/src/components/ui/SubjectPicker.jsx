@@ -64,6 +64,7 @@ export function SubjectPicker({
               value={filter}
               onChange={(event) => setFilter(event.target.value)}
               placeholder="Filter subjects"
+              aria-label="Filter subjects"
               className="border-ink-300 focus:border-brand-500 w-40 rounded-lg border px-3 py-1.5 text-sm"
             />
           )}

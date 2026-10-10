@@ -1,38 +1,42 @@
+import { lazy, Suspense } from 'react'
+import { PageLoader } from '@/components/ui'
 import { Navigate, Route, Routes } from 'react-router-dom'
 
 import ProtectedRoute from '@/components/routing/ProtectedRoute'
 import PublicOnlyRoute from '@/components/routing/PublicOnlyRoute'
 import AuthLayout from '@/layouts/AuthLayout'
 import PortalLayout from '@/layouts/PortalLayout'
-import ForgotPasswordPage from '@/pages/ForgotPasswordPage'
-import LandingPage from '@/pages/LandingPage'
-import LoginPage from '@/pages/LoginPage'
-import NotFoundPage from '@/pages/NotFoundPage'
-import SettingsPage from '@/pages/SettingsPage'
-import AcademicYearsPage from '@/pages/admin/AcademicYearsPage'
-import AdminDashboard from '@/pages/admin/AdminDashboard'
-import ClassesPage from '@/pages/admin/ClassesPage'
-import ExaminationsPage from '@/pages/admin/ExaminationsPage'
-import ReportsPage from '@/pages/admin/ReportsPage'
-import ResetRequestsPage from '@/pages/admin/ResetRequestsPage'
-import ResultSubmissionsPage from '@/pages/admin/ResultSubmissionsPage'
-import ResultsPage from '@/pages/admin/ResultsPage'
-import SchoolPage from '@/pages/admin/SchoolPage'
-import StudentImportPage from '@/pages/admin/StudentImportPage'
-import StudentsPage from '@/pages/admin/StudentsPage'
-import SubjectsPage from '@/pages/admin/SubjectsPage'
-import TeachersPage from '@/pages/admin/TeachersPage'
-import TermsPage from '@/pages/admin/TermsPage'
-import PreviousResultsPage from '@/pages/student/PreviousResultsPage'
-import StudentDashboard from '@/pages/student/StudentDashboard'
-import StudentDownloadsPage from '@/pages/student/StudentDownloadsPage'
-import StudentResultsPage from '@/pages/student/StudentResultsPage'
-import DownloadsPage from '@/pages/teacher/DownloadsPage'
-import MarkSheetPage from '@/pages/teacher/MarkSheetPage'
-import MyResultsPage from '@/pages/teacher/MyResultsPage'
-import SubmissionStatusPage from '@/pages/teacher/SubmissionStatusPage'
-import TeacherDashboard from '@/pages/teacher/TeacherDashboard'
-import UploadResultsPage from '@/pages/teacher/UploadResultsPage'
+const ForgotPasswordPage = lazy(() => import('@/pages/ForgotPasswordPage'))
+const LandingPage = lazy(() => import('@/pages/LandingPage'))
+const LoginPage = lazy(() => import('@/pages/LoginPage'))
+const FirstPasswordChangePage = lazy(() => import('@/pages/FirstPasswordChangePage'))
+const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'))
+const SettingsPage = lazy(() => import('@/pages/SettingsPage'))
+const AcademicYearsPage = lazy(() => import('@/pages/admin/AcademicYearsPage'))
+const AdminDashboard = lazy(() => import('@/pages/admin/AdminDashboard'))
+const ClassesPage = lazy(() => import('@/pages/admin/ClassesPage'))
+const ExaminationsPage = lazy(() => import('@/pages/admin/ExaminationsPage'))
+const ReportsPage = lazy(() => import('@/pages/admin/ReportsPage'))
+const ProgressionPage = lazy(() => import('@/pages/admin/ProgressionPage'))
+const ResetRequestsPage = lazy(() => import('@/pages/admin/ResetRequestsPage'))
+const ResultSubmissionsPage = lazy(() => import('@/pages/admin/ResultSubmissionsPage'))
+const ResultsPage = lazy(() => import('@/pages/admin/ResultsPage'))
+const SchoolPage = lazy(() => import('@/pages/admin/SchoolPage'))
+const StudentImportPage = lazy(() => import('@/pages/admin/StudentImportPage'))
+const StudentsPage = lazy(() => import('@/pages/admin/StudentsPage'))
+const SubjectsPage = lazy(() => import('@/pages/admin/SubjectsPage'))
+const TeachersPage = lazy(() => import('@/pages/admin/TeachersPage'))
+const TermsPage = lazy(() => import('@/pages/admin/TermsPage'))
+const PreviousResultsPage = lazy(() => import('@/pages/student/PreviousResultsPage'))
+const StudentDashboard = lazy(() => import('@/pages/student/StudentDashboard'))
+const StudentDownloadsPage = lazy(() => import('@/pages/student/StudentDownloadsPage'))
+const StudentResultsPage = lazy(() => import('@/pages/student/StudentResultsPage'))
+const DownloadsPage = lazy(() => import('@/pages/teacher/DownloadsPage'))
+const MarkSheetPage = lazy(() => import('@/pages/teacher/MarkSheetPage'))
+const MyResultsPage = lazy(() => import('@/pages/teacher/MyResultsPage'))
+const SubmissionStatusPage = lazy(() => import('@/pages/teacher/SubmissionStatusPage'))
+const TeacherDashboard = lazy(() => import('@/pages/teacher/TeacherDashboard'))
+const UploadResultsPage = lazy(() => import('@/pages/teacher/UploadResultsPage'))
 import { ROLES } from '@/utils/roles'
 
 /**
@@ -52,7 +56,7 @@ import { ROLES } from '@/utils/roles'
  */
 export function App() {
   return (
-    <Routes>
+    <Suspense fallback={<PageLoader label="Loading page" />}><Routes>
       <Route path="/" element={<LandingPage />} />
 
       <Route element={<PublicOnlyRoute />}>
@@ -62,12 +66,26 @@ export function App() {
         </Route>
       </Route>
 
+      <Route
+        element={
+          <ProtectedRoute
+            allowedRoles={[ROLES.ADMIN, ROLES.TEACHER, ROLES.STUDENT]}
+            allowPasswordChange
+          />
+        }
+      >
+        <Route element={<AuthLayout />}>
+          <Route path="/change-password" element={<FirstPasswordChangePage />} />
+        </Route>
+      </Route>
+
       <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]} />}>
         <Route path="/admin" element={<PortalLayout />}>
           <Route index element={<Navigate to="/admin/dashboard" replace />} />
           <Route path="dashboard" element={<AdminDashboard />} />
           <Route path="students" element={<StudentsPage />} />
           <Route path="students/import" element={<StudentImportPage />} />
+          <Route path="progression" element={<ProgressionPage />} />
           <Route path="teachers" element={<TeachersPage />} />
           <Route path="reset-requests" element={<ResetRequestsPage />} />
           <Route path="subjects" element={<SubjectsPage />} />
@@ -117,7 +135,7 @@ export function App() {
       </Route>
 
       <Route path="*" element={<NotFoundPage />} />
-    </Routes>
+    </Routes></Suspense>
   )
 }
 

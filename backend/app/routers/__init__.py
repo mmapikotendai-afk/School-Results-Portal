@@ -6,6 +6,7 @@ from app.config import settings
 from app.routers import (
     admin_academic,
     admin_accounts,
+    admin_progression,
     admin_catalog,
     admin_reset_requests,
     admin_results,
@@ -26,6 +27,7 @@ api_router.include_router(auth.router)
 
 # Administrator portal. Every one of these routers is gated by require_admin.
 api_router.include_router(admin_accounts.router)
+api_router.include_router(admin_progression.router)
 api_router.include_router(admin_students.router)
 api_router.include_router(admin_teachers.router)
 api_router.include_router(admin_catalog.router)

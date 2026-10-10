@@ -48,7 +48,7 @@ export function Input({
           aria-invalid={error ? 'true' : undefined}
           aria-describedby={describedBy}
           className={cx(
-            'w-full border bg-white py-2.5 text-sm transition-colors duration-100',
+            'w-full rounded-md border bg-white py-2.5 text-sm transition-colors duration-100',
             'placeholder:text-ink-400 text-ink-900',
             'disabled:bg-ink-100 disabled:text-ink-400 disabled:cursor-not-allowed',
             icon ? 'pl-10' : 'pl-3.5',

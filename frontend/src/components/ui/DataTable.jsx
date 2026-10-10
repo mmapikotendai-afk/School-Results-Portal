@@ -52,13 +52,13 @@ export function DataTable({
             rather than squeezing columns down to one word per line. */}
         <table className="tabular w-full min-w-[38rem] border-collapse text-sm">
           <thead>
-            <tr className="border-ink-900 border-b-2">
+            <tr className="border-ink-200 border-b bg-ink-50">
               {columns.map((column) => (
                 <th
                   key={column.key}
                   scope="col"
                   className={cx(
-                    'rule-label border-ink-200 border-r px-5 py-3 text-left last:border-r-0',
+                    'rule-label px-5 py-3 text-left',
                     column.align === 'right' && 'text-right',
                     column.className,
                   )}
@@ -73,6 +73,8 @@ export function DataTable({
               <tr
                 key={rowKey(row)}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
+                tabIndex={onRowClick ? 0 : undefined}
+                onKeyDown={onRowClick ? event => { if (event.target === event.currentTarget && ['Enter', ' '].includes(event.key)) { event.preventDefault(); onRowClick(row) } } : undefined}
                 className={cx(
                   'transition-colors',
                   onRowClick ? 'hover:bg-brand-50 cursor-pointer' : 'hover:bg-brand-50/60',
@@ -82,7 +84,7 @@ export function DataTable({
                   <td
                     key={column.key}
                     className={cx(
-                      'border-ink-200 border-r px-5 py-3 align-middle last:border-r-0',
+                      'px-5 py-3.5 align-middle',
                       column.align === 'right' && 'text-right',
                       column.cellClassName,
                     )}
@@ -109,7 +111,9 @@ export function DataTable({
             <li
               key={rowKey(row)}
               onClick={onRowClick ? () => onRowClick(row) : undefined}
-              className={cx('px-4 py-4', onRowClick && 'hover:bg-brand-50 cursor-pointer')}
+                tabIndex={onRowClick ? 0 : undefined}
+                onKeyDown={onRowClick ? event => { if (event.target === event.currentTarget && ['Enter', ' '].includes(event.key)) { event.preventDefault(); onRowClick(row) } } : undefined}
+              className={cx('px-4 py-4 break-words', onRowClick && 'hover:bg-brand-50 cursor-pointer')}
             >
               <div className="text-sm font-medium">
                 {primary.render ? primary.render(row) : row[primary.key]}

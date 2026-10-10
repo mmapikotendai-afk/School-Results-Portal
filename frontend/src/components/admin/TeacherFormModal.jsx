@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-import CredentialDeliveryPanel from '@/components/admin/CredentialDeliveryPanel'
+import CredentialSlips from '@/components/admin/CredentialSlips'
 import { Alert, Button, Input, Modal, SubjectPicker } from '@/components/ui'
 import { teacherService } from '@/services/adminService'
 import { getErrorMessage } from '@/services/apiClient'
@@ -10,7 +10,6 @@ function initialForm(teacher) {
     employee_number: teacher?.employee_number ?? '',
     first_name: teacher?.first_name ?? '',
     last_name: teacher?.last_name ?? '',
-    email: teacher?.email ?? '',
     department: teacher?.department ?? '',
     phone: teacher?.phone ?? '',
   }
@@ -38,11 +37,6 @@ export function TeacherFormModal({ open, mode, teacher, subjects, onClose, onSav
     if (!form.employee_number.trim()) errors.employee_number = 'An employee number is required.'
     if (!form.first_name.trim()) errors.first_name = 'Enter a first name.'
     if (!form.last_name.trim()) errors.last_name = 'Enter a last name.'
-    if (!form.email.trim()) {
-      errors.email = 'An email address is required.'
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
-      errors.email = 'Enter a valid email address.'
-    }
     setFieldErrors(errors)
     return Object.keys(errors).length === 0
   }
@@ -56,7 +50,6 @@ export function TeacherFormModal({ open, mode, teacher, subjects, onClose, onSav
       employee_number: form.employee_number.trim(),
       first_name: form.first_name.trim(),
       last_name: form.last_name.trim(),
-      email: form.email.trim(),
       department: form.department.trim() || null,
       phone: form.phone.trim() || null,
     }
@@ -71,8 +64,6 @@ export function TeacherFormModal({ open, mode, teacher, subjects, onClose, onSav
           ...payload,
           subject_ids: selectedSubjects,
         })
-        // The dialog stays open on the delivery outcome: if the email did not
-        // arrive, the administrator can resend before leaving this screen.
         setCreated(result)
       }
     } catch (err) {
@@ -96,11 +87,7 @@ export function TeacherFormModal({ open, mode, teacher, subjects, onClose, onSav
           </Button>
         }
       >
-        <CredentialDeliveryPanel
-          delivery={created.delivery}
-          accountType="Teacher"
-          onResend={() => teacherService.resendCredentials(created.id)}
-        />
+        <CredentialSlips slips={[created.credential]} autoDownload />
       </Modal>
     )
   }
@@ -174,18 +161,10 @@ export function TeacherFormModal({ open, mode, teacher, subjects, onClose, onSav
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Input
-            label="Email address"
-            name="email"
-            type="email"
-            icon="envelope"
-            value={form.email}
-            onChange={handleChange}
-            error={fieldErrors.email}
-            hint="Used to sign in."
-            disabled={saving}
-            required
-          />
+          <div className="rounded-lg bg-ink-50 px-4 py-3 text-sm text-ink-600">
+            <span className="font-medium text-ink-900">Sign-in name</span>
+            <p className="mt-1">The employee number is used to sign in. No email address is needed.</p>
+          </div>
           <Input
             label="Phone"
             name="phone"

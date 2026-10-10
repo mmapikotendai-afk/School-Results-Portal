@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import { Alert, Badge, Button, Modal, Spinner } from '@/components/ui'
-import { studentService } from '@/services/adminService'
+import { progressionService, studentService } from '@/services/adminService'
 import { getErrorMessage } from '@/services/apiClient'
 import { formatDate } from '@/utils/format'
 
@@ -17,14 +17,17 @@ function Row({ label, children }) {
 /** Read-only student record, including subjects currently studied and dropped. */
 export function StudentViewModal({ open, studentId, onClose, onEdit, onManageSubjects }) {
   const [student, setStudent] = useState(null)
+  const [history, setHistory] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
   useEffect(() => {
     let cancelled = false
-    studentService
-      .get(studentId)
-      .then((data) => !cancelled && setStudent(data))
+    Promise.all([studentService.get(studentId), progressionService.history(studentId)])
+      .then(([data, enrollmentHistory]) => {
+        if (cancelled) return
+        setStudent(data); setHistory(enrollmentHistory)
+      })
       .catch((err) => !cancelled && setError(getErrorMessage(err)))
       .finally(() => !cancelled && setLoading(false))
     return () => {
@@ -66,6 +69,7 @@ export function StudentViewModal({ open, studentId, onClose, onEdit, onManageSub
             <Row label="Student number">
               <span className="font-mono">{student.student_number}</span>
             </Row>
+            <Row label="Admission year">{student.admission_year}</Row>
             <Row label="Class">
               {student.school_class ? (
                 <>
@@ -80,13 +84,19 @@ export function StudentViewModal({ open, studentId, onClose, onEdit, onManageSub
             </Row>
             <Row label="Date of birth">{formatDate(student.date_of_birth)}</Row>
             <Row label="Gender">{student.gender ?? '—'}</Row>
-            <Row label="Email">{student.email}</Row>
             <Row label="Status">
               <Badge tone={student.is_active ? 'success' : 'neutral'}>
                 {student.is_active ? 'Active' : 'Inactive'}
               </Badge>
             </Row>
           </dl>
+
+          <div>
+            <p className="text-ink-700 mb-2 text-sm font-medium">Enrollment history</p>
+            <ol className="divide-y divide-ink-100 border-y border-ink-200">
+              {history.map(row => <li key={row.id} className="flex items-center justify-between gap-4 py-3 text-sm"><div><span className="font-medium">{row.academic_year_name}</span><span className="ml-2 text-ink-500">{row.class_name} · {row.form_level.replaceAll('_', ' ')}</span></div><Badge status={row.status}>{row.status.replaceAll('_', ' ')}</Badge></li>)}
+            </ol>
+          </div>
 
           <div>
             <p className="text-ink-700 mb-2 text-sm font-medium">

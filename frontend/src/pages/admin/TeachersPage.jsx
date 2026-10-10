@@ -5,6 +5,7 @@ import PageHeader from '@/components/common/PageHeader'
 import Toast from '@/components/common/Toast'
 import TeacherFormModal from '@/components/admin/TeacherFormModal'
 import TeacherSubjectsModal from '@/components/admin/TeacherSubjectsModal'
+import CredentialSlips from '@/components/admin/CredentialSlips'
 import {
   Alert,
   Badge,
@@ -13,6 +14,8 @@ import {
   ConfirmDialog,
   DataTable,
   Pagination,
+  Input,
+  Modal,
   RowAction,
   SearchInput,
 } from '@/components/ui'
@@ -36,7 +39,11 @@ export function TeachersPage() {
   const [formState, setFormState] = useState(null)
   const [subjectsFor, setSubjectsFor] = useState(null)
   const [confirming, setConfirming] = useState(null)
-  const [resending, setResending] = useState(null)
+  const [resetting, setResetting] = useState(null)
+  const [resetSlip, setResetSlip] = useState(null)
+  const [adminPassword, setAdminPassword] = useState('')
+  const [resetBusy, setResetBusy] = useState(false)
+  const [resetError, setResetError] = useState(null)
   const { toast, show, clear } = useToast()
 
   const query = useMemo(
@@ -71,21 +78,16 @@ export function TeachersPage() {
   }
 
 
-  /**
-   * Issue a new temporary password and email it.
-   *
-   * The server generates the password; nothing readable comes back here. The
-   * old password stops working at once, so this is a real reset rather than a
-   * repeat of the original message.
-   */
-  async function resendCredentials(row) {
-    const result = await teacherService.resendCredentials(row.id)
-    show(
-      result.sent
-        ? `New sign-in details sent to ${result.email}.`
-        : `Could not email ${result.email}. ${result.detail}`,
-      result.sent ? 'success' : 'danger',
-    )
+  async function resetCredentials() {
+    setResetBusy(true); setResetError(null)
+    try {
+      setResetSlip(await teacherService.resetCredentials(resetting.id, adminPassword))
+      setAdminPassword('')
+    } catch (err) {
+      setResetError(getErrorMessage(err))
+    } finally {
+      setResetBusy(false)
+    }
   }
 
   const columns = [
@@ -104,7 +106,7 @@ export function TeachersPage() {
       render: (row) => (
         <div className="min-w-0">
           <p className="text-ink-900 font-medium">{row.full_name}</p>
-          <p className="text-ink-400 truncate text-xs">{row.email}</p>
+          <p className="text-ink-400 truncate text-xs">Signs in with employee number</p>
         </div>
       ),
     },
@@ -152,9 +154,9 @@ export function TeachersPage() {
           />
           <RowAction icon="table-list" label="Assign subjects" onClick={() => setSubjectsFor(row)} />
           <RowAction
-            icon="paper-plane"
-            label="Resend login credentials"
-            onClick={() => setResending(row)}
+            icon="key"
+            label="Issue temporary password"
+            onClick={() => { setResetting(row); setResetSlip(null); setResetError(null); setAdminPassword('') }}
           />
           <RowAction
             icon={row.is_active ? 'ban' : 'circle-check'}
@@ -193,7 +195,7 @@ export function TeachersPage() {
               setSearch(value)
               setPage(1)
             }}
-            placeholder="Search by name, employee number or email"
+            placeholder="Search by name or employee number"
             className="min-w-[16rem] flex-1"
           />
           <label className="text-ink-600 flex cursor-pointer items-center gap-2 text-sm">
@@ -266,20 +268,15 @@ export function TeachersPage() {
         />
       )}
 
-      <ConfirmDialog
-        open={Boolean(resending)}
-        onClose={() => setResending(null)}
-        onConfirm={() => resendCredentials(resending)}
-        title="Resend login credentials?"
-        message={`A new temporary password will be generated and emailed to ${resending?.email}.`}
-        detail={
-          `This replaces the password ${resending?.full_name} has now. Their current ` +
-          `password stops working immediately and they will be signed out of any ` +
-          `session. Nobody sees the new password but them.`
-        }
-        confirmLabel="Generate and send"
-        icon="paper-plane"
-      />
+      <Modal
+        open={Boolean(resetting)}
+        onClose={() => setResetting(null)}
+        title={resetSlip ? 'One-time credential slip' : 'Reset teacher password'}
+        description={resetting ? `${resetting.full_name} · ${resetting.employee_number}` : ''}
+        footer={resetSlip ? <Button onClick={() => setResetting(null)}>Close</Button> : <><Button variant="secondary" onClick={() => setResetting(null)}>Cancel</Button><Button onClick={resetCredentials} loading={resetBusy} disabled={!adminPassword} icon="key">Issue temporary password</Button></>}
+      >
+        {resetSlip ? <CredentialSlips slips={[resetSlip]} autoDownload /> : <div className="space-y-4"><Alert tone="warning">Verify the teacher&rsquo;s identity offline first. This replaces the old password and ends existing sessions.</Alert>{resetError && <Alert tone="danger">{resetError}</Alert>}<Input label="Your administrator password" type="password" autoComplete="current-password" value={adminPassword} onChange={event => setAdminPassword(event.target.value)} disabled={resetBusy} required /></div>}
+      </Modal>
 
       <ConfirmDialog
         open={Boolean(confirming)}

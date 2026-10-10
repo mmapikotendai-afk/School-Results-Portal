@@ -3,11 +3,10 @@
 from datetime import date, datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.models.enums import EducationLevel, Gender
+from app.models.enums import EducationLevel, Gender, StudentEnrollmentStatus
 from app.schemas.catalog import ClassSummary, SubjectSummary
-from app.schemas.user import CredentialDelivery
 
 
 def _strip(value: Optional[str]) -> Optional[str]:
@@ -18,18 +17,11 @@ def _strip(value: Optional[str]) -> Optional[str]:
 
 
 class StudentBase(BaseModel):
-    student_number: str = Field(min_length=1, max_length=32)
     first_name: str = Field(min_length=1, max_length=80)
     last_name: str = Field(min_length=1, max_length=80)
     date_of_birth: Optional[date] = None
     gender: Optional[Gender] = None
     class_id: Optional[int] = None
-
-    @field_validator("student_number")
-    @classmethod
-    def _number(cls, v: str) -> str:
-        # Uppercased so STU-001 and stu-001 cannot both exist.
-        return v.strip().upper()
 
     @field_validator("first_name", "last_name")
     @classmethod
@@ -45,16 +37,12 @@ class StudentBase(BaseModel):
 
 
 class StudentCreate(StudentBase):
-    """Create a student and the portal account that goes with it.
+    """Admit a student; the permanent student number is generated server-side."""
 
-    Email is required. It is the address the learner gave the school office,
-    and it is where their temporary password is sent - so an account created
-    without one would be an account nobody could ever sign in to. A derived
-    `@STUDENT_EMAIL_DOMAIN` identifier is no longer accepted at creation for
-    exactly that reason.
-    """
+    model_config = ConfigDict(extra="forbid")
 
-    email: EmailStr
+    date_of_birth: date
+    gender: Gender
 
     # Subjects to enrol the student in, for the given (or active) year.
     subject_ids: List[int] = Field(default_factory=list)
@@ -62,18 +50,13 @@ class StudentCreate(StudentBase):
 
 
 class StudentUpdate(BaseModel):
-    student_number: Optional[str] = Field(default=None, min_length=1, max_length=32)
+    model_config = ConfigDict(extra="forbid")
+
     first_name: Optional[str] = Field(default=None, min_length=1, max_length=80)
     last_name: Optional[str] = Field(default=None, min_length=1, max_length=80)
     date_of_birth: Optional[date] = None
     gender: Optional[Gender] = None
     class_id: Optional[int] = None
-    email: Optional[EmailStr] = None
-
-    @field_validator("student_number")
-    @classmethod
-    def _number(cls, v):
-        return v.strip().upper() if v else v
 
     @field_validator("first_name", "last_name")
     @classmethod
@@ -88,13 +71,14 @@ class StudentRead(BaseModel):
 
     id: int
     student_number: str
+    admission_year: int
     first_name: str
     last_name: str
     full_name: str
     date_of_birth: Optional[date] = None
     gender: Optional[Gender] = None
-    email: str
     is_active: bool
+    enrollment_status: Optional[StudentEnrollmentStatus] = None
     school_class: Optional[ClassSummary] = None
     level: Optional[EducationLevel] = None
     subject_count: int = 0
@@ -110,14 +94,30 @@ class StudentDetail(StudentRead):
 
 
 class StudentCreated(StudentDetail):
-    """Returned on creation, carrying the delivery outcome - not the password.
+    """Returned once to the authorised administrator after admission."""
 
-    The temporary password is emailed to the student and is never included in
-    an API response. If delivery failed, the administrator resends, which
-    issues a new password rather than disclosing the one already set.
-    """
+    credential: "CredentialSlip"
 
-    delivery: CredentialDelivery
+
+class CredentialSlip(BaseModel):
+    student_id: int
+    school_name: str
+    student_name: str
+    student_number: str
+    temporary_password: str
+    portal_url: str
+    instructions: str
+    batch_id: str
+    expires_at: datetime
+
+
+class AdminReauthentication(BaseModel):
+    admin_password: str = Field(min_length=1, max_length=256)
+
+
+class StudentEnrollmentStatusUpdate(BaseModel):
+    status: StudentEnrollmentStatus
+    academic_year_id: Optional[int] = None
 
 
 # --------------------------------------------------------------- teachers
@@ -142,18 +142,19 @@ class TeacherBase(BaseModel):
 
 
 class TeacherCreate(TeacherBase):
-    email: EmailStr
+    model_config = ConfigDict(extra="forbid")
+
     subject_ids: List[int] = Field(default_factory=list)
     academic_year_id: Optional[int] = None
 
 
 class TeacherUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     employee_number: Optional[str] = Field(default=None, min_length=1, max_length=32)
     first_name: Optional[str] = Field(default=None, min_length=1, max_length=80)
     last_name: Optional[str] = Field(default=None, min_length=1, max_length=80)
     department: Optional[str] = Field(default=None, max_length=80)
     phone: Optional[str] = Field(default=None, max_length=32)
-    email: Optional[EmailStr] = None
 
     @field_validator("employee_number")
     @classmethod
@@ -176,7 +177,6 @@ class TeacherRead(BaseModel):
     full_name: str
     department: Optional[str] = None
     phone: Optional[str] = None
-    email: str
     is_active: bool
     subject_count: int = 0
     created_at: datetime
@@ -188,9 +188,21 @@ class TeacherDetail(TeacherRead):
 
 
 class TeacherCreated(TeacherDetail):
-    """As StudentCreated: the delivery outcome, never the password."""
+    """Returned only while an administrator issues a one-time teacher slip."""
 
-    delivery: CredentialDelivery
+    credential: "TeacherCredentialSlip"
+
+
+class TeacherCredentialSlip(BaseModel):
+    teacher_id: int
+    school_name: str
+    teacher_name: str
+    employee_number: str
+    temporary_password: str
+    portal_url: str
+    instructions: str
+    batch_id: str
+    expires_at: datetime
 
 
 # ------------------------------------------------- enrollment / assignment
@@ -230,7 +242,6 @@ class StudentImportRow(BaseModel):
     student_number: str
     first_name: str = ""
     last_name: str = ""
-    email: str = ""
     date_of_birth: Optional[date] = None
     gender: Optional[Gender] = None
 
@@ -239,7 +250,7 @@ class StudentImportRow(BaseModel):
 
 
 class StudentImportRowError(BaseModel):
-    """A row that cannot be imported, or one whose email did not arrive."""
+    """A row that cannot be imported."""
 
     row: int
     student_number: Optional[str] = None
@@ -277,13 +288,13 @@ class StudentImportResult(BaseModel):
 
     students_created: int = 0
     enrollments_created: int = 0
-    credentials_sent: int = 0
-    credentials_failed: int = 0
+    credentials_issued: int = 0
+    batch_id: Optional[str] = None
+    expires_at: Optional[datetime] = None
+    credentials: List[CredentialSlip] = Field(default_factory=list)
 
-    # Students created whose credential email did not go out. The account
-    # exists; the administrator resends from the student's row.
-    undelivered: List[StudentImportRowError] = Field(default_factory=list)
     # Rows that could not be created at all, if the roll changed since preview.
     failed: List[StudentImportRowError] = Field(default_factory=list)
 
     detail: str = ""
+    model_config = ConfigDict(extra="forbid")

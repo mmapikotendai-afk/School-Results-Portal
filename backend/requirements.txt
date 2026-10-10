@@ -1,5 +1,6 @@
 # --- Core framework ---
-fastapi==0.115.6
+fastapi==0.143.0
+starlette==1.7.0             # pin the patched multipart and file-response implementation
 uvicorn[standard]==0.34.0
 
 # --- Database (SQLAlchemy ORM) ---

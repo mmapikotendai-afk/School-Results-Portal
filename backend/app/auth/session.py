@@ -30,14 +30,13 @@ def issue_csrf_token() -> str:
     return secrets.token_urlsafe(32)
 
 
-def attach_session(response: Response, token: str, max_age: int) -> str:
+def attach_session(response: Response, token: str) -> str:
     """Set the session and CSRF cookies. Returns the CSRF token."""
     csrf = issue_csrf_token()
 
     response.set_cookie(
         key=settings.SESSION_COOKIE_NAME,
         value=token,
-        max_age=max_age,
         httponly=True,                      # unreadable to JavaScript
         secure=settings.cookie_secure,
         samesite=settings.SESSION_COOKIE_SAMESITE,
@@ -47,7 +46,6 @@ def attach_session(response: Response, token: str, max_age: int) -> str:
     response.set_cookie(
         key=settings.CSRF_COOKIE_NAME,
         value=csrf,
-        max_age=max_age,
         httponly=False,
         secure=settings.cookie_secure,
         samesite=settings.SESSION_COOKIE_SAMESITE,
@@ -69,22 +67,20 @@ def token_from_request(request: Request) -> str | None:
 def csrf_is_valid(request: Request) -> bool:
     """Whether an unsafe, cookie-authenticated request may proceed.
 
-    A request authenticated by the Authorization header is exempt: the browser
-    never attaches that header on its own, so it cannot be forged from another
-    origin in the first place.
+    Only requests without a session cookie are exempt. Cookie authentication
+    takes precedence over the Authorization header throughout the application.
     """
     if request.method in SAFE_METHODS:
         return True
 
-    authorization = request.headers.get("authorization", "")
-    if authorization.lower().startswith("bearer "):
+    # Authentication prefers the cookie, even when a bearer header is also
+    # present. Only requests without a session cookie may skip this check.
+    if token_from_request(request) is None:
         return True
 
     cookie = request.cookies.get(settings.CSRF_COOKIE_NAME)
     if not cookie:
-        # No CSRF cookie means no cookie session either; the request will be
-        # rejected for want of authentication rather than here.
-        return request.cookies.get(settings.SESSION_COOKIE_NAME) is None
+        return False
 
     sent = request.headers.get(settings.CSRF_HEADER_NAME, "")
     return bool(sent) and secrets.compare_digest(sent, cookie)

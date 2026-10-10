@@ -177,9 +177,8 @@ async def enforce_csrf(request: Request, call_next):
     this origin, whoever caused it, so the check belongs where every request
     passes.
 
-    Requests carrying an Authorization header are exempt. A browser never adds
-    that header on its own, so such a request cannot be forged from another
-    site in the first place.
+    Requests without a session cookie are exempt; API clients authenticate
+    using a bearer token instead. Adding a header never exempts a cookie.
     """
     if not csrf_is_valid(request):
         return JSONResponse(

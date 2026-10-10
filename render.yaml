@@ -1,9 +1,9 @@
 # Render blueprint for the FastAPI backend.
 #
-# The frontend is not here: it is a static build on Vercel that calls this
-# service directly. Two settings have to agree with it or the browser refuses
-# every request before it leaves - CORS_ORIGINS below, and VITE_API_BASE_URL
-# on the Vercel side.
+# The frontend is not here: it is a static build on Vercel whose /api and /uploads
+# rewrites forward to this service. Keep VITE_API_BASE_URL=/api/v1 so cookies
+# share the frontend origin, and update both proxy destinations in vercel.json
+# when this service's hostname changes.
 
 services:
   - type: web

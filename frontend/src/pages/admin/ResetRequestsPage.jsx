@@ -236,8 +236,8 @@ export function ResetRequestsPage() {
       {status === 'PENDING' && waiting > 0 && (
         <Alert tone="info" className="mb-5">
           <FontAwesomeIcon icon="circle-info" className="mr-2" aria-hidden="true" />
-          Reissuing sends a new temporary password by email and signs the person out
-          everywhere. Nobody, including you, ever sees the password itself.
+          Administrator requests issue a new temporary password by email and sign the
+          person out everywhere. Students and teachers use their own offline reset controls.
         </Alert>
       )}
 
@@ -270,7 +270,7 @@ export function ResetRequestsPage() {
             await approve(row)
           }}
           title="Reissue this password?"
-          message={`A new temporary password will be emailed to ${approving.full_name} at ${approving.email}. Their current password stops working immediately and they will be signed out everywhere.`}
+          message={`A new temporary password will be emailed to ${approving.full_name}. Their current password stops working immediately and they will be signed out everywhere.`}
           detail={
             <Alert tone="warning">
               Check you know who asked. Anyone who can reach the sign-in page can raise a

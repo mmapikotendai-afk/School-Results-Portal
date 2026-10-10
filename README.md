@@ -78,7 +78,7 @@ School Magement Portal/
 
 ### Prerequisites
 
-- **Node.js 18+** and npm
+- **Node.js 22.12+** (Node 22 is selected by `frontend/.nvmrc`) and npm
 - **Python 3.11+**
 - **MySQL 8** running and reachable
 
@@ -153,10 +153,11 @@ npm run dev
 
 Open <http://localhost:5173>.
 
-Requests to `/api` are proxied to `http://127.0.0.1:8000` by `vite.config.js`, so in
-development the browser makes same-origin calls and CORS never applies. For production,
-point `VITE_API_BASE_URL` at the deployed API origin — the backend `CORS_ORIGINS` setting
-must then list the frontend origin.
+Requests to `/api` and `/uploads` are proxied to `http://127.0.0.1:8000` by
+`vite.config.js`. Keep `VITE_API_BASE_URL=/api/v1` in development and production
+so session and CSRF cookies share the frontend origin. On Vercel, update both
+backend destinations in `frontend/vercel.json`; do not put the backend origin
+in `VITE_API_BASE_URL`. See [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ### 4. Verify the two are talking
 
@@ -339,70 +340,34 @@ A DNS lookup that cannot be performed — no network, resolver timeout — is no
 an undeliverable address. The address is allowed through and a warning is logged, because
 refusing to enrol students for the duration of a DNS outage is the worse failure.
 
-### If the send itself fails
+### Email-free student accounts
 
-The account is **discarded**. A FAILED delivery deletes the row it was created for, the
-API returns `502`, and the administrator is told the credentials could not be emailed —
-so they can correct the address and submit again rather than being left with a stranded
-account holding a password nobody knows.
+Students sign in only with their permanent student number. Student admissions, profiles,
+CSV files and API responses contain no email field. New admissions get
+a number generated as `STUDENT_NUMBER_PREFIX` + two-digit admission year + a locked,
+zero-padded sequence, such as `PHS26001`. Relationships and results continue to use the
+internal `students.id` primary key.
 
-`SKIPPED` is deliberately not a discard. It means no attempt was made, normally because
-delivery is switched off, which is a configuration choice rather than a bad address.
-Deleting accounts because the mail system is turned off would make the portal unusable
-offline.
+The administrator receives a short-lived credential slip once after admission or reset.
+It contains the school name, student name and number, temporary password, portal URL and
+instructions. The plaintext is held only in that response and browser memory. The
+database stores the strong hash plus a `credential_audits` row with issuer, action,
+batch, expiry and print time; it never stores or logs the plaintext password. Bulk print
+requires the administrator's password and a batch can be consumed only once.
 
-This reverses the portal's original behaviour, which kept the account and reported the
-failed delivery. That was the right call when a bounce was the likely failure; it stopped
-being the right call once the school required that a student who cannot be emailed is not
-enrolled at all.
+Student recovery is an offline school process. After verifying identity, an administrator
+uses **Students > Reset password**, re-enters their own password, and prints a new slip.
+The old password is never revealed. Resetting increments `token_version`, immediately
+ending existing sessions.
 
-The outcome is recorded on the user row — `email_sent`, `email_sent_at`,
-`email_delivery_status` (`NOT_SENT` / `PENDING` / `SENT` / `FAILED` / `SKIPPED`) — so
-accounts that never received their details can be found later.
-
-`SKIPPED` means no attempt was made — normally because email delivery is switched off,
-or because a legacy account carries a derived `@STUDENT_EMAIL_DOMAIN` identifier rather
-than a real mailbox. The UI says so rather than offering a button that cannot work.
-
-### The student's email address is required
-
-A student gives the school office their own email address, and the administrator enters
-that address in the **Email** field. It is required — `StudentCreate.email` is an
-`EmailStr` with no default, and the form refuses to submit without it.
-
-It used to be optional: leaving it blank derived `<student-number>@STUDENT_EMAIL_DOMAIN`,
-which is a sign-in identifier that routes nowhere. That made sense when credentials were
-read off the screen, and stopped making sense the moment they were emailed instead — an
-account created that way is one nobody can ever sign in to, because the only copy of its
-password went to an address that does not exist. The derivation is gone from account
-creation.
-
-`STUDENT_EMAIL_DOMAIN` is still read, but only as a guard: any legacy row holding such an
-address is detected and reported as `SKIPPED` rather than being posted into a bounce.
-
-### Resending credentials
-
-**Users > (row) > Resend login credentials**, or the button on the creation dialog.
-
-A resend does not re-send the original password: that value is not recoverable, which is
-the point. A new one is generated, hashed and emailed. The previous password stops
-working the moment the hash is replaced, and `token_version` is incremented so every
-session the account holds ends immediately.
-
-### What the email contains
-
-School name, the holder's full name, account type, their student or employee number,
-their login email, the temporary password, a link to `FRONTEND_URL/login`, the
-instruction to change the password on first login, and a warning not to share the
-credentials. It is sent `multipart/alternative`, so a client that refuses HTML still
-shows a readable plain-text version. The HTML is table-based with inline styles and
-reads correctly on desktop and mobile.
+Teachers and administrators keep their existing username or email sign-in and email
+credential delivery.
 
 ### First login
 
 ```text
 temporary password -> authenticate -> must_change_password = true
-                   -> Settings > Security > Change Password
+                   -> forced /change-password screen
                    -> new hash, must_change_password = false
                    -> token_version bumped, session invalidated
                    -> sign in again with the new password
@@ -738,14 +703,17 @@ administrators, subjects, classes, terms and examinations are left alone.
 | `npm run preview` | Serve the production build  |
 | `npm run lint`    | Lint with oxlint            |
 
-## Not built yet
+## Verification and published reports
 
-The administrator portal, authentication, authorization and the database schema are
-complete.
+Report card generation and audited corrections are implemented. Publication
+saves each student's class, subjects, grading context, and ranking cohort, so
+later profile or enrollment changes do not rewrite historical reports.
 
-Still to come: **report card generation** — a per-student PDF across all subjects, and
-the admin-side correction screen that reads `result_audit_logs` back.
+After installing updated backend requirements, run `python -m scripts.init_db`
+to create the publication table and backfill existing published exams from the
+records still available. Previously overwritten historical data cannot be
+recovered automatically.
 
-Everything else is built and verified end to end: authentication, the administrator
-portal, academic periods and publication, the teacher portal with CSV upload and
-exports, and the student results view.
+Run backend regressions with `python -m pytest -q` from `backend` after installing
+`requirements-dev.txt`. Run frontend checks with `npm run lint`, `npm test`, and
+`npm run build` from `frontend`. Backend tests use an isolated in-memory database.

@@ -6,7 +6,7 @@ from sqlalchemy import Boolean, Enum, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
-from app.models.enums import EducationLevel
+from app.models.enums import EducationLevel, FormLevel
 from app.models.mixins import CreatedAtMixin
 
 
@@ -30,6 +30,7 @@ class SchoolClass(Base, CreatedAtMixin):
     level: Mapped[EducationLevel] = mapped_column(
         Enum(EducationLevel), nullable=False, index=True
     )
+    form_level: Mapped[FormLevel] = mapped_column(Enum(FormLevel), nullable=False, index=True)
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 

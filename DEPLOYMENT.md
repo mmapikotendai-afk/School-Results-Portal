@@ -58,12 +58,25 @@ EMAIL_FROM_NAME       Presbyterian High School
 
 SCHOOL_NAME           Presbyterian High School
 SCHOOL_MOTTO          Knowledge. Integrity. Service.
-STUDENT_EMAIL_DOMAIN  students.internal
+STUDENT_NUMBER_PREFIX PHS
+STUDENT_NUMBER_SEQUENCE_WIDTH 3
+CREDENTIAL_SLIP_TTL_MINUTES 10
 
 ADMIN_EMAIL           you@example.com
 ADMIN_PASSWORD        a strong password
 ADMIN_NAME            Head Teacher
 ```
+
+Before deploying this version over an existing database, stop the API and run:
+
+```bash
+cd backend
+python scripts/migrate_email_free_students.py
+```
+
+The migration is idempotent and verifies that user, student and result counts
+are unchanged. It aborts if an existing username conflicts with a permanent
+student number or if students exist without an active academic year.
 
 **Email uses Brevo's HTTPS API, not SMTP.** Render's free instances block
 outbound traffic on ports 25, 465 and 587. A blocked port does not refuse the
@@ -104,7 +117,9 @@ DEBUG=false also withdraws `/docs`, `/redoc` and `/openapi.json`.
   application sees the real client address through Render's router rather than
   the router's own. The rate limiter counts per address, so without this every
   caller would look like the same one.
-- **Health check**: `/api/v1/health`, which reports database connectivity too.
+- **Health check**: `/api/v1/health` returns 200 when the database is connected
+  and 503 when it is unavailable. Public errors are generic; details stay in
+  server logs. `/api/v1/ping` is the separate liveness endpoint.
 
 Verify:
 
@@ -125,7 +140,7 @@ call if the service has spun down.
 3. Add one environment variable:
 
    ```
-   VITE_API_BASE_URL = https://your-service.onrender.com/api/v1
+   VITE_API_BASE_URL = /api/v1
    ```
 
    Vite reads this at **build** time, not run time, so changing it later needs a
@@ -134,10 +149,15 @@ call if the service has spun down.
 4. Deploy, then go back to Render and set `CORS_ORIGINS` and `FRONTEND_URL` to
    the Vercel URL.
 
-`vercel.json` rewrites every path to `index.html`. Without it, reloading
-`/admin/students` asks Vercel for a file that was never built and returns 404 —
-that route only exists once React Router is running. Static files are matched
-first, so assets are unaffected.
+`vercel.json` forwards `/api/:path*` and `/uploads/:path*` to Render before
+rewriting application routes to `index.html`. Update **both** proxy destinations
+if your Render service has a different hostname. Keep browser API calls at
+`/api/v1`: the session and readable CSRF cookie must share the frontend origin.
+Do not set `VITE_API_BASE_URL` to the Render URL or switch SameSite to `none`.
+If an older deployment has that absolute environment variable, change it and
+redeploy the frontend. The final `index.html` rewrite lets React Router handle
+reloads of application routes such as `/admin/students`. Static assets and the
+two backend proxies are handled before that fallback.
 
 ---
 
@@ -147,7 +167,7 @@ The two sides each need the other's URL, so:
 
 1. Neon → connection string
 2. Render → deploy with a placeholder `CORS_ORIGINS`; note the `.onrender.com` URL
-3. Vercel → deploy with `VITE_API_BASE_URL` pointing at Render; note the URL
+3. Vercel → set both proxy destinations in `frontend/vercel.json` to Render, keep `VITE_API_BASE_URL=/api/v1`, and deploy; note the URL
 4. Render → set the real `CORS_ORIGINS` and `FRONTEND_URL`, redeploy
 5. Sign in as `ADMIN_EMAIL`, then delete the three `ADMIN_*` variables
 
@@ -174,3 +194,36 @@ portable SQLAlchemy — all 17 tables compile for either — but running differe
 databases locally and in production is a real source of surprises. Pointing
 local development at a second Neon database closes that gap when you want it
 closed.
+
+
+## Updating an existing installation
+
+Install the updated requirements, then run `python -m scripts.init_db` before
+starting the new backend. The Render build already runs this command. It creates
+the new `published_reports` table and backfills published examinations once;
+re-running it does not overwrite captured context. Existing tables and marks
+are preserved. Backfill uses the records still available, so it cannot recover
+class assignments or subject names already overwritten before this update.
+
+New publications capture the student's identity, class, subject list, grading
+scale, and ranking cohort in the same transaction as publication. Later
+promotions, enrollment changes, deactivations, and catalogue changes do not
+rewrite those reports. Audited mark corrections remain visible and update
+positions within the original cohort. Explicit grade recalculation updates the
+saved grading scale; unpublishing and republishing captures a new context.
+
+Verify from `backend` with `python -m pytest -q` after installing
+`requirements-dev.txt`. The tests use an isolated in-memory database.
+# Permanent student numbers and progression migration
+
+After deploying this version, stop the API and run the progression migration once:
+
+```powershell
+cd backend
+$env:DEBUG='false'
+.\.venv\Scripts\python.exe scripts\migrate_permanent_numbers_progression.py
+```
+
+The migration adds immutable admission years, Form values, annual enrollment
+snapshots and progression audits. It checks student and result counts before and
+after and can be run again safely.

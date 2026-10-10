@@ -1,354 +1,83 @@
 import { Link } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-
 import PageHeader from '@/components/common/PageHeader'
-import StatTile from '@/components/common/StatTile'
+import EmptyState from '@/components/common/EmptyState'
 import SubmissionProgress from '@/components/admin/SubmissionProgress'
-import { Alert, Badge, Button, Card, CardBody, PageLoader } from '@/components/ui'
+import { Alert, Badge, Button, Card, DataTable, PageLoader } from '@/components/ui'
 import useAsyncData from '@/hooks/useAsyncData'
-import useAuth from '@/hooks/useAuth'
 import useDocumentTitle from '@/hooks/useDocumentTitle'
-import { dashboardService } from '@/services/adminService'
-import { statusLabel } from '@/utils/constants'
-import { cx, formatDate, formatDateTime } from '@/utils/format'
+import { dashboardService, resultsService } from '@/services/adminService'
+import { formatDate, formatDateTime } from '@/utils/format'
 
-/** The three publication states, each with its own colour and icon. */
-const PUBLICATION = {
-  published: {
-    tone: 'bg-success-50 border-success-100 text-success-800',
-    badge: 'success',
-    icon: 'circle-check',
-  },
-  awaiting_review: {
-    tone: 'bg-warning-50 border-warning-100 text-warning-800',
-    badge: 'warning',
-    icon: 'pen-to-square',
-  },
-  awaiting_submissions: {
-    tone: 'bg-brand-50 border-brand-200 text-brand-900',
-    badge: 'brand',
-    icon: 'clock',
-  },
+function PublicationDesk({ data }) {
+  const publication = data.publication
+  return <section className="border-t-2 border-brand-900 pt-4">
+            <h2 className="section-heading">Publication desk</h2>
+            <div className="mt-4"><Badge tone={publication?.state === 'published' ? 'success' : 'neutral'}>{publication?.label ?? 'Awaiting submissions'}</Badge></div>
+            <p className="mt-3 text-sm leading-relaxed text-ink-500">{publication?.detail}</p>
+            <dl className="my-5 divide-y divide-ink-200 border-y border-ink-200 text-sm"><div className="flex justify-between gap-3 py-3"><dt className="text-ink-500">Published results</dt><dd className="font-medium tabular-nums">{data.results_published}</dd></div><div className="flex justify-between gap-3 py-3"><dt className="text-ink-500">Awaiting publication</dt><dd className="font-medium tabular-nums">{data.results_unpublished}</dd></div></dl>
+            {publication?.published_by && <p className="mb-4 text-xs leading-relaxed text-ink-500">Published by {publication.published_by}{publication.published_at ? ' · ' + formatDate(publication.published_at) : ''}</p>}
+            <Button as={Link} to="/admin/examinations" size="sm" fullWidth icon="arrow-right" iconPosition="right">{publication?.state === 'published' ? 'Manage examinations' : 'Review & publish'}</Button>
+          </section>
 }
 
-const QUICK_ACTIONS = [
-  { to: '/admin/students', label: 'Add Student', icon: 'user-graduate' },
-  { to: '/admin/teachers', label: 'Add Teacher', icon: 'users' },
-  { to: '/admin/subjects', label: 'Add Subject', icon: 'book' },
-  { to: '/admin/examinations', label: 'Create Examination', icon: 'file-lines' },
-  { to: '/admin/examinations', label: 'Monitor Submissions', icon: 'clock' },
-  { to: '/admin/results', label: 'View Results', icon: 'table-list' },
-]
-
-/** A responsive table of teachers who still owe results. */
-function OutstandingTable({ rows, showDaysOverdue }) {
-  return (
-    <div className="overflow-x-auto">
-      <table className="tabular w-full min-w-[30rem] border-collapse text-sm">
-        <thead>
-          <tr className="border-ink-900 border-b-2">
-            <th scope="col" className="rule-label px-5 py-2.5 text-left">
-              Teacher
-            </th>
-            <th scope="col" className="rule-label px-5 py-2.5 text-left">
-              Subject
-            </th>
-            <th scope="col" className="rule-label px-5 py-2.5 text-left">
-              Deadline
-            </th>
-            {showDaysOverdue && (
-              <th scope="col" className="rule-label px-5 py-2.5 text-right">
-                Days overdue
-              </th>
-            )}
-          </tr>
-        </thead>
-        <tbody className="divide-ink-200 divide-y">
-          {rows.map((row) => (
-            <tr key={row.submission_id}>
-              <td className="text-ink-900 px-5 py-2.5 font-medium">{row.teacher_name}</td>
-              <td className="px-5 py-2.5">
-                <span className="text-ink-800">{row.subject_name}</span>
-                <span className="text-ink-400 ml-2 font-mono text-xs">{row.subject_code}</span>
-                {row.expected_count > 0 && (
-                  <span className="text-ink-400 ml-2 text-xs">
-                    {row.submitted_count}/{row.expected_count} marked
-                  </span>
-                )}
-              </td>
-              <td className="text-ink-600 px-5 py-2.5">{formatDate(row.deadline)}</td>
-              {showDaysOverdue && (
-                <td className="px-5 py-2.5 text-right">
-                  <span className="text-danger-700 font-semibold tabular-nums">
-                    {row.days_overdue ?? 0}
-                  </span>
-                </td>
-              )}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-/**
- * Administrator dashboard.
- *
- * Answers one question: where has this examination got to, and who is holding
- * it up. Deliberately narrow - nothing here reports on anything but results
- * collection and publication.
- */
 export function AdminDashboard() {
-  useDocumentTitle('Dashboard')
-  const { user } = useAuth()
+  useDocumentTitle('Academic workspace')
   const { data, loading, error, refresh } = useAsyncData(() => dashboardService.stats(), [])
-
-  if (loading && !data) return <PageLoader label="Loading dashboard" />
-
+  const audit = useAsyncData(() => resultsService.auditTrail({ limit: 4 }), [])
+  if (loading && !data) return <PageLoader label="Loading academic workspace" />
   const exam = data?.current_examination
-  const publication = data?.publication
-  const style = PUBLICATION[publication?.state] ?? PUBLICATION.awaiting_submissions
-
-  return (
-    <div>
-      <PageHeader
-        eyebrow="Administration"
-        title={`Welcome back, ${user?.full_name?.split(' ')[0] ?? 'Administrator'}`}
-        description={
-          data?.active_year_name
-            ? `${data.active_year_name}${data.active_term_name ? ` · ${data.active_term_name}` : ''}`
-            : 'Set up an academic year to get started.'
-        }
-        actions={
-          <Button variant="secondary" size="sm" icon="rotate" onClick={refresh} loading={loading}>
-            Refresh
-          </Button>
-        }
-      />
-
-      {error && (
-        <Alert tone="danger" className="mb-6">
-          {error}
-        </Alert>
-      )}
-
-      {!data?.active_year_name && !error && (
-        <Alert tone="info" title="No active academic year" className="mb-6">
-          Create an academic year and term before adding students, so enrolment and
-          results have somewhere to belong.{' '}
-          <Link to="/admin/academic" className="font-semibold underline">
-            Set up the academic year
-          </Link>
-        </Alert>
-      )}
-
-      {/* OVERVIEW */}
-      <div className="grid gap-5 sm:grid-cols-3">
-        <StatTile icon="user-graduate" label="Total students" value={data?.total_students ?? 0} hint="Active accounts" />
-        <StatTile icon="users" label="Total teachers" value={data?.total_teachers ?? 0} hint="Active accounts" />
-        <StatTile icon="book" label="Total subjects" value={data?.total_subjects ?? 0} hint="Currently offered" />
+  const outstanding = [...(data?.overdue_submissions ?? []).map(row => ({...row, state: 'OVERDUE'})), ...(data?.pending_submissions ?? []).map(row => ({...row, state: 'PENDING'}))]
+  const columns = [
+    { key: 'subject_name', header: 'Subject', primary: true, render: row => <div><p className="font-medium text-ink-900">{row.subject_name}</p><p className="mt-1 text-xs text-ink-500">{row.subject_code}</p></div> },
+    { key: 'teacher_name', header: 'Teacher' },
+    { key: 'marks', header: 'Marks received', render: row => row.expected_count > 0 ? <span className="tabular-nums">{row.submitted_count} <span className="text-ink-500">/ {row.expected_count}</span></span> : 'No enrolled students' },
+    { key: 'state', header: 'Due', render: row => <div><Badge status={row.state}>{row.state === 'OVERDUE' ? (row.days_overdue ?? 0) + ' days overdue' : 'Pending'}</Badge><p className="mt-1 text-xs text-ink-500">{formatDate(row.deadline)}</p></div> },
+  ]
+  return <div>
+    <PageHeader title="Academic workspace" description={data?.active_year_name ? [data.active_term_name, data.active_year_name].filter(Boolean).join(' · ') + ' — results, records and the next steps for your school.' : 'Organise the academic year, then bring your school records together.'}
+      actions={<Button variant="secondary" size="sm" icon="rotate" onClick={() => { refresh(); audit.refresh() }} loading={loading}>Refresh</Button>} />
+    {error && <Alert tone="danger" title="Workspace could not be refreshed" className="mb-6">{error} <button onClick={refresh} className="font-semibold underline">Try again</button></Alert>}
+    {data && <>
+      <div className="record-census mb-7" aria-label="School register">
+        {[['students', data.total_students, 'active students'], ['teachers', data.total_teachers, 'teachers'], ['classes', data.total_classes, 'classes'], ['subjects', data.total_subjects, 'subjects']].map(([path,count,label]) => count != null && <Link key={path} to={'/admin/' + path}><strong>{count.toLocaleString()}</strong>{label}<FontAwesomeIcon icon="chevron-right" className="ml-1 text-[9px]" /></Link>)}
       </div>
-
-      {exam ? (
-        <>
-          {/* CURRENT EXAMINATION + SUBMISSION PROGRESS */}
-          <div className="mt-6 grid gap-5 lg:grid-cols-3">
-            <Card className="lg:col-span-2">
-              <div className="border-ink-200 flex flex-wrap items-start justify-between gap-3 border-b px-5 py-4">
-                <div className="min-w-0">
-                  <h2 className="font-serif text-lg font-semibold">{exam.name}</h2>
-                  <p className="text-ink-500 mt-0.5 text-sm">
-                    {exam.term_name}
-                    {exam.academic_year_name ? ` · ${exam.academic_year_name}` : ''}
-                  </p>
-                </div>
-                <Badge status={exam.status}>{statusLabel(exam.status)}</Badge>
+      <div className="grid items-start gap-7 xl:grid-cols-[minmax(0,1fr)_280px]">
+        <div className="min-w-0 space-y-7">
+          <Card>
+            {exam ? <>
+              <div className="flex flex-wrap items-start justify-between gap-3 border-b border-ink-200 px-5 py-5 sm:px-6">
+                <div><h2 className="font-serif text-2xl font-medium">{exam.name}</h2><p className="mt-1 text-xs text-ink-500">{[exam.term_name, exam.academic_year_name].filter(Boolean).join(' · ')}</p></div>
+                <Badge status={exam.status} />
               </div>
-
-              <CardBody>
-                <p
-                  className={cx(
-                    'mb-5 flex items-center gap-2 text-sm',
-                    exam.is_past_deadline ? 'text-danger-600 font-medium' : 'text-ink-500',
-                  )}
-                >
-                  <FontAwesomeIcon
-                    icon={exam.is_past_deadline ? 'triangle-exclamation' : 'clock'}
-                    aria-hidden="true"
-                  />
-                  {exam.submission_deadline ? (
-                    <>
-                      Submission deadline {formatDateTime(exam.submission_deadline)}
-                      {exam.is_past_deadline && ' — passed'}
-                    </>
-                  ) : (
-                    'No submission deadline set'
-                  )}
-                </p>
-
-                <SubmissionProgress
-                  submitted={data.submissions_complete}
-                  pending={data.submissions_pending}
-                  overdue={data.submissions_overdue}
-                  total={data.submissions_total}
-                  progress={data.submission_progress}
-                />
-              </CardBody>
-            </Card>
-
-            {/* PUBLICATION STATUS */}
-            <Card>
-              <div className="border-ink-200 border-b px-5 py-4">
-                <h2 className="text-base font-semibold">Publication</h2>
-              </div>
-              <CardBody>
-                <div className={cx('border px-4 py-4', style.tone)}>
-                  <FontAwesomeIcon icon={style.icon} className="text-xl" aria-hidden="true" />
-                  <p className="mt-2 font-semibold">{publication?.label}</p>
-                  {publication?.detail && (
-                    <p className="mt-1 text-sm opacity-90">{publication.detail}</p>
-                  )}
-                  {publication?.published_by && (
-                    <p className="mt-2 text-xs opacity-80">
-                      Published by {publication.published_by}
-                      {publication.published_at && ` on ${formatDate(publication.published_at)}`}
-                    </p>
-                  )}
-                </div>
-
-                <dl className="mt-5 space-y-3 text-sm">
-                  <div className="flex items-center justify-between">
-                    <dt className="text-ink-600 flex items-center gap-2">
-                      <span className="bg-success-500 size-2 rounded-full" aria-hidden="true" />
-                      Results published
-                    </dt>
-                    <dd className="text-ink-900 font-semibold">{data.results_published}</dd>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <dt className="text-ink-600 flex items-center gap-2">
-                      <span className="bg-ink-300 size-2 rounded-full" aria-hidden="true" />
-                      Not yet published
-                    </dt>
-                    <dd className="text-ink-900 font-semibold">{data.results_unpublished}</dd>
-                  </div>
-                </dl>
-
-                <Button
-                  as={Link}
-                  to="/admin/examinations"
-                  variant="secondary"
-                  size="sm"
-                  className="mt-5"
-                  icon="arrow-right"
-                  iconPosition="right"
-                  fullWidth
-                >
-                  Manage publication
-                </Button>
-              </CardBody>
-            </Card>
-          </div>
-
-          {/* OVERDUE RESULTS */}
-          {data.overdue_submissions?.length > 0 && (
-            <Card className="mt-5">
-              <div className="border-danger-100 bg-danger-50 flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <span className="bg-danger-600 flex size-9 items-center justify-center text-white">
-                    <FontAwesomeIcon icon="triangle-exclamation" aria-hidden="true" />
-                  </span>
-                  <div>
-                    <h2 className="text-danger-800 text-base font-semibold">Overdue results</h2>
-                    <p className="text-danger-700 mt-0.5 text-sm">
-                      {data.overdue_submissions.length} subject
-                      {data.overdue_submissions.length === 1 ? '' : 's'} past the deadline.
-                    </p>
-                  </div>
-                </div>
-                <Button as={Link} to="/admin/examinations" size="sm" variant="secondary">
-                  Chase up
-                </Button>
-              </div>
-              <OutstandingTable rows={data.overdue_submissions} showDaysOverdue />
-            </Card>
-          )}
-
-          {/* PENDING RESULTS */}
-          {data.pending_submissions?.length > 0 && (
-            <Card className="mt-5">
-              <div className="border-ink-200 flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <span className="bg-warning-600 flex size-9 items-center justify-center text-white">
-                    <FontAwesomeIcon icon="clock" aria-hidden="true" />
-                  </span>
-                  <div>
-                    <h2 className="text-base font-semibold">Pending results</h2>
-                    <p className="text-ink-500 mt-0.5 text-sm">
-                      Still within the deadline.
-                    </p>
-                  </div>
+              <div className="p-5 sm:p-6">
+                <SubmissionProgress submitted={data.submissions_complete} pending={data.submissions_pending} overdue={data.submissions_overdue} total={data.submissions_total} progress={data.submission_progress} />
+                <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-ink-200 pt-4">
+                  <p className={'flex items-center gap-2 text-xs ' + (exam.is_past_deadline ? 'text-danger-600' : 'text-ink-500')}><FontAwesomeIcon icon="clock" />{exam.submission_deadline ? 'Due ' + formatDateTime(exam.submission_deadline) : 'No submission deadline set'}</p>
+                  <Link to="/admin/submissions" className="text-link">Track submissions <FontAwesomeIcon icon="arrow-right" className="ml-1 text-xs" /></Link>
                 </div>
               </div>
-              <OutstandingTable rows={data.pending_submissions} />
-            </Card>
-          )}
-
-          {data.submissions_total > 0 &&
-            !data.pending_submissions?.length &&
-            !data.overdue_submissions?.length && (
-              <Alert tone="success" title="All required results submitted" className="mt-5">
-                Every teacher has submitted results for this examination.
-              </Alert>
-            )}
-        </>
-      ) : (
-        !error && (
-          <Card className="mt-6">
-            <CardBody>
-              <div className="py-8 text-center">
-                <span className="bg-ink-100 text-ink-400 mx-auto mb-4 flex size-12 items-center justify-center rounded-full">
-                  <FontAwesomeIcon icon="file-lines" className="text-lg" aria-hidden="true" />
-                </span>
-                <p className="text-ink-800 font-semibold">No examination set up</p>
-                <p className="text-ink-500 mt-1 text-sm">
-                  Create an examination to start collecting results from teachers.
-                </p>
-                <Button as={Link} to="/admin/examinations" className="mt-5" icon="plus">
-                  Create an examination
-                </Button>
-              </div>
-            </CardBody>
+            </> : <div className="p-6 sm:p-8"><h2 className="font-serif text-2xl font-medium">Prepare your next examination</h2><p className="mt-3 max-w-lg text-sm leading-relaxed text-ink-500">Set the academic year and term, then open an examination to collect marks from teachers.</p><ol className="my-6 divide-y divide-ink-200">
+              {[[data.active_year_name, 'Academic year', '/admin/academic-years'], [data.active_term_name, 'Term', '/admin/terms'], [null, 'Examination', '/admin/examinations']].map(([value,label,to], i) => <li key={label} className="flex items-center justify-between gap-3 py-3 text-sm"><span className="flex items-center gap-3"><span className="text-ink-500">{i+1}.</span>{label}</span><Link to={to} className="text-link">{value || 'Set up'} <FontAwesomeIcon icon={value ? 'circle-check' : 'arrow-right'} className="ml-2 text-xs" /></Link></li>)}
+              </ol><Button as={Link} to="/admin/examinations" size="sm" icon="plus">Create examination</Button></div>}
           </Card>
-        )
-      )}
-
-      {/* QUICK ACTIONS */}
-      <Card className="mt-5">
-        <div className="border-ink-200 border-b px-5 py-4">
-          <h2 className="text-base font-semibold">Quick actions</h2>
+          {exam && <div className="xl:hidden"><PublicationDesk data={data} /></div>}
+          {exam && <section aria-labelledby="attention-title">
+            <div className="mb-4 flex items-center justify-between gap-3"><h2 id="attention-title" className="section-heading">Outstanding submissions <span className="ml-2 text-xs font-normal text-ink-500">{outstanding.length}</span></h2><Link to="/admin/submissions" className="text-link">View all</Link></div>
+            <Card><DataTable columns={columns} rows={outstanding.slice(0, 5)} rowKey={row => row.submission_id} empty={<EmptyState icon="circle-check" title={data.submissions_total > 0 ? 'All required subjects submitted' : 'No submissions to track yet'} description={data.submissions_total > 0 ? 'Review the marks before publishing student report cards.' : 'Assign subjects and open submissions in Examinations.'} action={<Button as={Link} to="/admin/examinations" variant="secondary" size="sm">Manage examination</Button>} />} />{outstanding.length > 5 && <div className="border-t border-ink-200 px-5 py-3 text-xs text-ink-500">Showing 5 of {outstanding.length} outstanding submissions. <Link to="/admin/submissions" className="text-link">View the full register</Link></div>}</Card>
+          </section>}
+          <section aria-labelledby="operations-title">
+            <div className="mb-3 flex items-center justify-between gap-3"><h2 id="operations-title" className="section-heading">Recent mark corrections</h2><Link to="/admin/results" className="text-link">Review results</Link></div>
+            {audit.error ? <Alert tone="warning">Recent corrections could not be loaded. <button className="underline" onClick={audit.refresh}>Retry</button></Alert> : audit.loading && !audit.data ? <p className="py-4 text-sm text-ink-500" role="status">Loading corrections…</p> : audit.data?.length ? <ul className="divide-y divide-ink-200 border-y border-ink-200">{audit.data.map(event => <li key={event.id} className="flex items-start gap-3 py-4"><FontAwesomeIcon icon="pen-to-square" className="mt-1 text-xs text-ink-500" /><div className="min-w-0 flex-1"><p className="text-sm"><span className="font-medium">{event.subject_name}</span> · {event.student_name}</p><p className="mt-1 text-xs leading-relaxed text-ink-500">{event.changed_by ?? 'School staff'} changed {event.old_marks ?? '—'} to {event.new_marks ?? '—'}{event.reason ? ' · ' + event.reason : ''}</p><p className="mt-1 text-xs text-ink-500">{formatDateTime(event.changed_at)}</p></div></li>)}</ul> : <p className="border-y border-ink-200 py-5 text-sm leading-relaxed text-ink-500">No mark corrections recorded. Changes to results will appear here with the author and reason.</p>}
+          </section>
         </div>
-        <CardBody>
-          <div className="border-ink-200 grid grid-cols-2 gap-px border bg-ink-200 sm:grid-cols-3 lg:grid-cols-6">
-            {QUICK_ACTIONS.map((action) => (
-              <Link
-                key={action.label}
-                to={action.to}
-                className="hover:bg-brand-50 group flex flex-col items-center gap-2.5 bg-white px-3 py-5 text-center transition-colors"
-              >
-                <span className="text-brand-800 flex size-6 items-center justify-center">
-                  <FontAwesomeIcon icon={action.icon} aria-hidden="true" />
-                </span>
-                <span className="text-ink-700 group-hover:text-brand-900 text-[11px] font-semibold tracking-wide">
-                  {action.label}
-                </span>
-              </Link>
-            ))}
-          </div>
-        </CardBody>
-      </Card>
-    </div>
-  )
+        <aside className="space-y-7">
+          {exam && <div className="hidden xl:block"><PublicationDesk data={data} /></div>}
+          <section className="border-t border-ink-200 pt-4"><h2 className="section-heading">Student register</h2><p className="mt-3 text-sm leading-relaxed text-ink-500">Manage admissions, annual placements and confirmed returns.</p><div className="mt-4 space-y-3"><Link to="/admin/students" className="text-link block">Open student register <FontAwesomeIcon icon="arrow-right" className="ml-1 text-xs" /></Link><Link to="/admin/students/import" className="text-link block">New intake or transfer import</Link><Link to="/admin/progression" className="text-link block">Progression and returns</Link></div></section>
+          <section className="border-t border-ink-200 pt-4"><h2 className="section-heading">Academic structure</h2><div className="mt-3 divide-y divide-ink-200">{[['Academic years','/admin/academic-years'],['Terms','/admin/terms'],['Classes & placements','/admin/classes'],['Subjects & teachers','/admin/subjects']].map(([label,to]) => <Link key={to} to={to} className="flex items-center justify-between gap-2 py-3 text-[13px] text-ink-600 hover:text-brand-800">{label}<FontAwesomeIcon icon="chevron-right" className="text-[9px]" /></Link>)}</div></section>
+        </aside>
+      </div>
+    </>}
+  </div>
 }
-
 export default AdminDashboard

@@ -16,7 +16,7 @@ const EMPTY = { currentPassword: '', newPassword: '', confirmPassword: '' }
  * form does not "save and carry on": it signs the user out and sends them to
  * /login, where they must authenticate with the new password.
  */
-export function ChangePasswordForm() {
+export function ChangePasswordForm({ firstLogin = false }) {
   const { changePassword } = useAuth()
   const navigate = useNavigate()
 
@@ -85,8 +85,12 @@ export function ChangePasswordForm() {
     <Card>
       <CardHeader
         icon="lock"
-        title="Change Password"
-        description="You will be signed out and asked to sign in again."
+        title={firstLogin ? 'Set a private password' : 'Change Password'}
+        description={
+          firstLogin
+            ? 'Use the temporary password from your slip as the current password.'
+            : 'You will be signed out and asked to sign in again.'
+        }
       />
       <CardBody>
         {error && (

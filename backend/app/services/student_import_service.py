@@ -19,16 +19,18 @@ re-uploading would collide with the students already created.
 
 import csv
 import io
+import uuid
+from datetime import timedelta
 from datetime import date, datetime
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from app.models.enums import Gender
 from app.models.school_class import SchoolClass
 from app.models.student import Student
 from app.models.subject import Subject
-from app.models.user import User
 from app.schemas.people import (
     StudentImportReport,
     StudentImportRow,
@@ -36,23 +38,17 @@ from app.schemas.people import (
     StudentImportRowError,
 )
 from app.schemas.people import StudentCreate
-from app.services import email_service
 from app.services.academic_service import AcademicService
 from app.services.people_service import StudentService
-from app.services.provisioning_service import ProvisioningService
+from app.services.student_credentials_service import StudentCredentialsService, utcnow
 
 # Accepted spellings of each column, lowercased and stripped. Being generous
 # here costs nothing and saves an administrator re-exporting a spreadsheet.
 COLUMN_ALIASES = {
-    "student_number": {
-        "student_number", "studentnumber", "student number", "student no",
-        "student_no", "studentno", "candidate number", "candidate_number", "number",
-    },
     "first_name": {"first_name", "firstname", "first name", "given name", "given_name"},
     "last_name": {
         "last_name", "lastname", "last name", "surname", "family name", "family_name",
     },
-    "email": {"email", "email_address", "email address", "e-mail", "mail"},
     "date_of_birth": {
         "date_of_birth", "dateofbirth", "date of birth", "dob", "birth date",
         "birth_date", "birthdate",
@@ -60,13 +56,11 @@ COLUMN_ALIASES = {
     "gender": {"gender", "sex"},
 }
 
-REQUIRED_COLUMNS = ("student_number", "first_name", "last_name", "email")
+REQUIRED_COLUMNS = ("first_name", "last_name", "date_of_birth", "gender")
 
 TEMPLATE_COLUMNS = [
-    "student_number",
     "first_name",
     "last_name",
-    "email",
     "date_of_birth",
     "gender",
 ]
@@ -74,8 +68,8 @@ TEMPLATE_COLUMNS = [
 # Two rows of example data, so the shape of each column is obvious without
 # reading any documentation. The administrator replaces them.
 TEMPLATE_EXAMPLES = [
-    ["STU-001", "Tendai", "Mapiko", "tendai@example.com", "2009-05-14", "Male"],
-    ["STU-002", "Rudo", "Chikore", "rudo@example.com", "2009-02-11", "Female"],
+    ["Tendai", "Mapiko", "2009-05-14", "Male"],
+    ["Rudo", "Chikore", "2009-02-11", "Female"],
 ]
 
 # A spreadsheet saved from Excel often carries a UTF-8 BOM; utf-8-sig eats it.
@@ -84,7 +78,7 @@ ENCODINGS = ["utf-8-sig", "utf-8", "cp1252", "latin-1"]
 MAX_UPLOAD_BYTES = 2 * 1024 * 1024
 
 # One class at a time. Well above any real class, and low enough that the
-# import finishes inside a single request even with an email per student.
+# import finishes inside a single request while keeping one class atomic.
 MAX_ROWS = 300
 
 GENDER_WORDS = {
@@ -113,6 +107,18 @@ def resolve_columns(fieldnames: List[str]) -> Tuple[Dict[str, str], Optional[str
         return {}, "The file has no header row."
 
     mapping: Dict[str, str] = {}
+    forbidden = {
+        header.strip().lower().lstrip("ï»¿")
+        for header in fieldnames
+        if header and header.strip().lower().lstrip("ï»¿") in {
+            "email", "email_address", "email address", "e-mail", "mail"
+        }
+    }
+    if forbidden:
+        return {}, (
+            "Student email is not part of admissions. Remove the email column and "
+            "use first_name,last_name,date_of_birth,gender."
+        )
     for header in fieldnames:
         if header is None:
             continue
@@ -207,7 +213,7 @@ class StudentImportService:
 
         subject_ids = [int(s) for s in subject_ids or []]
         if subject_ids:
-            valid, problem = self.students.valid_subject_ids(subject_ids)
+            valid, problem = self.students.valid_subject_ids(subject_ids, school_class.level)
             if not valid:
                 return None, None, [], problem
 
@@ -223,24 +229,11 @@ class StudentImportService:
 
     # --------------------------------------------------------- validation
 
-    def _existing_students(self) -> Dict[str, Tuple[int, Optional[str]]]:
-        """Every student number already taken, with the class that holds it.
-
-        Loaded once rather than queried per row, and the class name is carried
-        along so a clash can say where the number already sits instead of only
-        that it is taken.
-        """
-        rows = (
-            self.db.query(Student.student_number, SchoolClass.name)
-            .outerjoin(SchoolClass, Student.class_id == SchoolClass.id)
-            .all()
-        )
-        return {r[0].strip().upper(): (0, r[1]) for r in rows}
-
-    def _existing_emails(self) -> set:
+    def _existing_people(self) -> set:
         return {
-            (row[0] or "").strip().lower()
-            for row in self.db.query(User.email).all()
+            (row.first_name.strip().casefold(), row.last_name.strip().casefold(), row.date_of_birth)
+            for row in self.db.query(Student).all()
+            if row.date_of_birth is not None
         }
 
     def validate(
@@ -283,11 +276,8 @@ class StudentImportService:
         if column_error:
             return fail(column_error)
 
-        taken_numbers = self._existing_students()
-        taken_emails = self._existing_emails()
-
-        seen_numbers: Dict[str, int] = {}
-        seen_emails: Dict[str, int] = {}
+        existing_people = self._existing_people()
+        seen_people: Dict[tuple, int] = {}
 
         for index, row in enumerate(raw_rows, start=2):  # line 1 is the header
             if index - 1 > MAX_ROWS:
@@ -307,76 +297,38 @@ class StudentImportService:
                 return (row.get(header) or "").strip() if header else ""
 
             # A leading apostrophe is how a spreadsheet marks a cell as text.
-            number = cell("student_number").lstrip("'").strip()
             first_name = cell("first_name")
             last_name = cell("last_name")
-            email = cell("email").lower()
             dob_raw = cell("date_of_birth")
             gender_raw = cell("gender")
 
             # A wholly blank line is padding, not an error.
-            if not any((number, first_name, last_name, email, dob_raw, gender_raw)):
+            if not any((first_name, last_name, dob_raw, gender_raw)):
                 continue
 
             report.total_rows += 1
             entry = StudentImportRow(
                 row=index,
-                student_number=number or "-",
+                student_number="Generated on confirmation",
                 first_name=first_name,
                 last_name=last_name,
-                email=email,
             )
 
-            def reject(message: str, entry=entry, number=number, index=index) -> None:
+            def reject(message: str, entry=entry, index=index) -> None:
                 entry.valid = False
                 entry.message = message
                 report.rows.append(entry)
                 report.errors.append(
                     StudentImportRowError(
-                        row=index, student_number=number or None, message=message
+                        row=index, message=message
                     )
                 )
 
-            if not number:
-                reject("No student number given.")
-                continue
             if not first_name:
                 reject("No first name given.")
                 continue
             if not last_name:
                 reject("No last name given.")
-                continue
-
-            key = number.upper()
-            if key in seen_numbers:
-                reject(f"Student number appears twice in this file (also on row {seen_numbers[key]}).")
-                continue
-            seen_numbers[key] = index
-
-            if key in taken_numbers:
-                _, held_by = taken_numbers[key]
-                where = f" It is already in {held_by}." if held_by else ""
-                reject(
-                    f"Student number {number} already belongs to another student.{where}"
-                )
-                continue
-
-            if not email:
-                reject("No email address given. Credentials are sent there.")
-                continue
-
-            problem = email_service.address_problem(email, check_deliverable)
-            if problem:
-                reject(problem)
-                continue
-
-            if email in seen_emails:
-                reject(f"Email appears twice in this file (also on row {seen_emails[email]}).")
-                continue
-            seen_emails[email] = index
-
-            if email in taken_emails:
-                reject(f"An account already exists for {email}.")
                 continue
 
             dob, dob_error = parse_date(dob_raw)
@@ -388,6 +340,22 @@ class StudentImportService:
             if gender_error:
                 reject(gender_error)
                 continue
+
+            if dob is None:
+                reject("No date of birth given.")
+                continue
+            if gender is None:
+                reject("No gender given.")
+                continue
+
+            person_key = (first_name.casefold(), last_name.casefold(), dob)
+            if person_key in existing_people:
+                reject("A student with this exact name and date of birth already exists. Verify the record before admitting them again.")
+                continue
+            if person_key in seen_people:
+                reject(f"This exact name and date of birth also appears on row {seen_people[person_key]}.")
+                continue
+            seen_people[person_key] = index
 
             entry.date_of_birth = dob
             entry.gender = gender
@@ -427,16 +395,9 @@ class StudentImportService:
         year_id: int,
         subject_ids: Sequence[int],
         subject_names: List[str],
+        actor_user_id: int,
     ) -> StudentImportResult:
-        """Create every student in a validated report, then email each one.
-
-        Creation and delivery are separated deliberately. A student whose
-        credentials could not be emailed is kept, not discarded: unlike a
-        single add, where the administrator is standing there and can correct
-        the address, a failure here would silently drop one learner out of a
-        class of forty. The import reports the failures and the administrator
-        resends, which issues a fresh password.
-        """
+        """Create the validated class and return one-time printable slips."""
         result = StudentImportResult(
             class_id=school_class.id,
             class_name=school_class.name,
@@ -444,18 +405,18 @@ class StudentImportService:
             subjects=subject_names,
         )
 
-        provisioning = ProvisioningService(self.db)
+        credentials = StudentCredentialsService(self.db)
         subject_ids = [int(s) for s in subject_ids or []]
+        batch_id = str(uuid.uuid4())
+        expires_at = utcnow() + timedelta(minutes=10)
 
         for entry in report.rows:
             if not entry.valid:
                 continue
 
             payload = StudentCreate(
-                student_number=entry.student_number,
                 first_name=entry.first_name,
                 last_name=entry.last_name,
-                email=entry.email,
                 date_of_birth=entry.date_of_birth,
                 gender=entry.gender,
                 class_id=school_class.id,
@@ -463,38 +424,33 @@ class StudentImportService:
                 academic_year_id=year_id,
             )
 
-            student, password, error = self.students.create(payload)
+            student, password, error = self.students.create(payload, commit=False)
             if error or student is None:
-                # The roll can change between validating and confirming.
-                result.failed.append(
-                    StudentImportRowError(
-                        row=entry.row, student_number=entry.student_number, message=error or "Could not be created."
-                    )
-                )
-                continue
+                self.db.rollback()
+                raise ValueError(error or f"Row {entry.row} could not be created.")
 
             result.students_created += 1
             result.enrollments_created += len(subject_ids)
 
-            delivery = provisioning.deliver_new_credentials(student.user, password)
+            slip = credentials.issue_slip(
+                student, password, actor_user_id, "BULK_ISSUED", batch_id, expires_at
+            )
+            result.credentials.append(slip)
             del password
 
-            if delivery.sent:
-                result.credentials_sent += 1
-            else:
-                result.credentials_failed += 1
-                result.undelivered.append(
-                    StudentImportRowError(
-                        row=entry.row,
-                        student_number=entry.student_number,
-                        message=f"{entry.email}: {delivery.error or delivery.detail}",
-                    )
-                )
+            result.credentials_issued += 1
 
-        parts = [f"{result.students_created} student{'' if result.students_created == 1 else 's'} added to {school_class.name}"]
-        if result.credentials_failed:
-            parts.append(
-                f"{result.credentials_failed} could not be emailed - use Resend on those rows"
-            )
-        result.detail = ". ".join(parts) + "."
+        try:
+            self.db.commit()
+        except IntegrityError as exc:
+            self.db.rollback()
+            raise ValueError(
+                "The class list changed while it was being imported. No students were added; preview the file again."
+            ) from exc
+        result.batch_id = batch_id
+        result.expires_at = expires_at
+        result.detail = (
+            f"{result.students_created} student{'' if result.students_created == 1 else 's'} "
+            f"added to {school_class.name}. Print the credentials once before they expire."
+        )
         return result

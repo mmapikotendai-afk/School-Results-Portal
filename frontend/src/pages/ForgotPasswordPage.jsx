@@ -34,7 +34,7 @@ export function ForgotPasswordPage() {
     setError(null)
 
     if (!identifier.trim()) {
-      setFieldError('Enter the username or email address you sign in with.')
+      setFieldError('Enter your username or email address.')
       return
     }
 
@@ -56,9 +56,8 @@ export function ForgotPasswordPage() {
           <span className="bg-success-50 text-success-700 mb-4 flex size-12 items-center justify-center rounded-full">
             <FontAwesomeIcon icon="circle-check" className="text-xl" aria-hidden="true" />
           </span>
-          <p className="rule-label mb-3">Request sent</p>
-          <h1 className="text-[28px] leading-tight font-bold tracking-tight">
-            The office has been notified
+          <h1 className="font-serif text-[32px] leading-tight font-medium tracking-tight">
+            Request received
           </h1>
         </div>
 
@@ -80,13 +79,12 @@ export function ForgotPasswordPage() {
   return (
     <div>
       <div className="mb-8">
-        <p className="rule-label mb-3">Results Portal</p>
-        <h1 className="text-[32px] leading-none font-bold tracking-tight">
+        <h1 className="font-serif text-[40px] leading-tight font-medium tracking-tight">
           Forgot password
         </h1>
         <p className="text-ink-500 mt-3 text-sm">
-          The school office issues passwords. Tell them you are locked out and they will
-          send you a new one by email.
+          Students and teachers should contact the school administration for an identity
+          check and a one-time credential slip. This request form is for administrators.
         </p>
       </div>
 
@@ -98,7 +96,7 @@ export function ForgotPasswordPage() {
 
       <form onSubmit={handleSubmit} noValidate className="space-y-5">
         <Input
-          label="Username or email"
+          label="Administrator username or email"
           name="identifier"
           type="text"
           icon="envelope"
@@ -106,7 +104,7 @@ export function ForgotPasswordPage() {
           autoCapitalize="none"
           spellCheck="false"
           placeholder="you@school.edu"
-          hint="Whatever you normally sign in with."
+          hint="This request form is for administrators only."
           value={identifier}
           onChange={(e) => {
             setIdentifier(e.target.value)
@@ -123,7 +121,7 @@ export function ForgotPasswordPage() {
           name="message"
           type="text"
           placeholder="Optional"
-          hint="For example, if your email address has changed."
+          hint="Optional context for the school office."
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           disabled={submitting}

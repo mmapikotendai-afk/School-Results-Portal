@@ -27,7 +27,7 @@ export function Select({
   const describedBy = error ? `${id}-error` : hint ? `${id}-hint` : undefined
 
   return (
-    <div className={cx('w-full', className)}>
+    <div className={cx('min-w-0', className || 'w-full')}>
       {label && (
         <label htmlFor={id} className="text-ink-700 mb-1.5 block text-sm font-medium">
           {label}
@@ -38,6 +38,7 @@ export function Select({
         <select
           id={id}
           disabled={disabled}
+          aria-label={!label ? placeholder : undefined}
           aria-invalid={error ? 'true' : undefined}
           aria-describedby={describedBy}
           className={cx(

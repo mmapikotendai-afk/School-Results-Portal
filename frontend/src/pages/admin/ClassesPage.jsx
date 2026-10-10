@@ -21,9 +21,13 @@ import useToast from '@/hooks/useToast'
 import { classService } from '@/services/adminService'
 import { getErrorMessage } from '@/services/apiClient'
 
-const LEVELS = [
-  { value: 'O_LEVEL', label: 'O-Level (Forms 1 to 4)' },
-  { value: 'A_LEVEL', label: 'A-Level (Lower and Upper 6)' },
+const FORMS = [
+  { value: 'FORM_1', label: 'Form 1', level: 'O_LEVEL' },
+  { value: 'FORM_2', label: 'Form 2', level: 'O_LEVEL' },
+  { value: 'FORM_3', label: 'Form 3', level: 'O_LEVEL' },
+  { value: 'FORM_4', label: 'Form 4', level: 'O_LEVEL' },
+  { value: 'LOWER_6', label: 'Lower 6', level: 'A_LEVEL' },
+  { value: 'UPPER_6', label: 'Upper 6', level: 'A_LEVEL' },
 ]
 
 function ClassForm({ open, schoolClass, onClose, onSaved }) {
@@ -31,6 +35,7 @@ function ClassForm({ open, schoolClass, onClose, onSaved }) {
   const [form, setForm] = useState({
     name: schoolClass?.name ?? '',
     level: schoolClass?.level ?? 'O_LEVEL',
+    form_level: schoolClass?.form_level ?? 'FORM_1',
   })
   const [fieldErrors, setFieldErrors] = useState({})
   const [error, setError] = useState(null)
@@ -38,7 +43,12 @@ function ClassForm({ open, schoolClass, onClose, onSaved }) {
 
   function handleChange(event) {
     const { name, value } = event.target
-    setForm((p) => ({ ...p, [name]: value }))
+    setForm((p) => {
+      if (name === 'form_level') {
+        return { ...p, form_level: value, level: FORMS.find((item) => item.value === value).level }
+      }
+      return { ...p, [name]: value }
+    })
     setFieldErrors((p) => ({ ...p, [name]: undefined }))
   }
 
@@ -52,7 +62,7 @@ function ClassForm({ open, schoolClass, onClose, onSaved }) {
     setSaving(true)
     setError(null)
     try {
-      const payload = { name: form.name.trim(), level: form.level }
+      const payload = { name: form.name.trim(), level: form.level, form_level: form.form_level }
       if (isEdit) {
         await classService.update(schoolClass.id, payload)
         onSaved(`${payload.name} has been updated.`)
@@ -102,12 +112,12 @@ function ClassForm({ open, schoolClass, onClose, onSaved }) {
           required
         />
         <Select
-          label="Level"
-          name="level"
-          value={form.level}
+          label="Form"
+          name="form_level"
+          value={form.form_level}
           onChange={handleChange}
-          options={LEVELS}
-          hint="Decides which grading scale applies to this class."
+          options={FORMS}
+          hint={`${form.level === 'O_LEVEL' ? 'O-Level' : 'A-Level'} grading applies.`}
           disabled={saving}
         />
       </form>
@@ -140,6 +150,11 @@ export function ClassesPage() {
   }
 
   const columns = [
+    {
+      key: 'form_level',
+      header: 'Form',
+      render: (row) => row.form_level?.replace('FORM_', 'Form ').replace('LOWER_6', 'Lower 6').replace('UPPER_6', 'Upper 6'),
+    },
     {
       key: 'name',
       header: 'Class',

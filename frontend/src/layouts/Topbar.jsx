@@ -9,7 +9,7 @@ import { initials } from '@/utils/format'
 import { roleLabel, settingsPathForRole } from '@/utils/roles'
 
 /** Portal header: mobile menu trigger, identity chip, settings and sign-out. */
-export function Topbar({ onOpenMenu }) {
+export function Topbar({ onOpenMenu, menuOpen }) {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
@@ -19,7 +19,7 @@ export function Topbar({ onOpenMenu }) {
 
   // Where am I? The sidebar answers this on a laptop, but it is hidden on a
   // phone, so the header carries the current page name instead.
-  const current = flatNavigationFor(user?.role).find((item) =>
+  const current = flatNavigationFor(user?.role).sort((a, b) => b.to.length - a.to.length).find((item) =>
     location.pathname.startsWith(item.to),
   )
 
@@ -31,18 +31,19 @@ export function Topbar({ onOpenMenu }) {
   }
 
   return (
-    <header className="border-ink-200 sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-white/95 px-4 backdrop-blur sm:px-6">
+    <header className="border-ink-200 sticky top-0 z-30 flex h-[65px] items-center gap-3 border-b bg-white px-4 sm:px-6">
       <button
         type="button"
         onClick={onOpenMenu}
         className="text-ink-600 hover:bg-ink-100 -ml-1 p-2 transition-colors lg:hidden"
         aria-label="Open navigation menu"
+        aria-expanded={menuOpen}
       >
         <FontAwesomeIcon icon="bars" />
       </button>
 
       {current && (
-        <p className="text-ink-900 min-w-0 truncate text-sm font-semibold lg:hidden">
+        <p className="text-ink-900 min-w-0 truncate text-sm font-medium">
           {current.label}
         </p>
       )}
@@ -51,7 +52,7 @@ export function Topbar({ onOpenMenu }) {
 
       <div className="flex items-center gap-2 sm:gap-3">
         <div className="hidden text-right sm:block">
-          <p className="text-ink-900 text-sm leading-tight font-semibold">{user?.full_name}</p>
+          <p className="text-ink-900 max-w-[240px] truncate text-xs leading-tight font-medium">{user?.full_name}</p>
           <p className="text-ink-500 text-[11px] tracking-wide">
             {roleLabel(user?.role)}
             {identifier ? ` · ${identifier}` : ''}
@@ -68,7 +69,7 @@ export function Topbar({ onOpenMenu }) {
         </Link>
 
         <span
-          className="bg-brand-800 flex size-9 shrink-0 items-center justify-center text-[13px] font-bold tracking-wide text-white"
+          className="bg-brand-50 text-brand-900 rounded-full flex size-8 shrink-0 items-center justify-center text-[13px] font-bold tracking-wide"
           aria-hidden="true"
         >
           {initials(user?.full_name)}

@@ -107,12 +107,6 @@ class Settings(BaseSettings):
         default_factory=lambda: ["http://localhost:5173", "http://127.0.0.1:5173"]
     )
 
-    # Sign-in domain given to learners who have no mailbox of their own. It is
-    # an identifier, not an inbox, so it must be syntactically valid but need
-    # not be routable. Reserved names such as .local and .invalid are rejected
-    # by email validation and must not be used here.
-    STUDENT_EMAIL_DOMAIN: str = "students.internal"
-
     # --- Uploads ---
     # Where the school logo and, later, result CSV files are written.
     UPLOAD_DIR: str = "uploads"
@@ -171,6 +165,12 @@ class Settings(BaseSettings):
     # Public origin of the React app, used to build the sign-in link in the
     # credential email. No trailing slash.
     FRONTEND_URL: str = "http://localhost:5173"
+
+    # Student numbers follow PREFIX + two-digit admission year + sequence,
+    # for example PHS26001. Existing student numbers are never rewritten.
+    STUDENT_NUMBER_PREFIX: str = "PHS"
+    STUDENT_NUMBER_SEQUENCE_WIDTH: int = 3
+    CREDENTIAL_SLIP_TTL_MINUTES: int = 10
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod

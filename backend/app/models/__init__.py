@@ -38,16 +38,21 @@ from app.models.enums import (
     SubjectLevel,
     SubmissionStatus,
     UserRole,
+    StudentEnrollmentStatus,
+    FormLevel,
+    ProgressionAction,
 )
 from app.models.examination import Examination
 from app.models.grade_band import GradeBand
 from app.models.login_attempt import LoginAttempt
 from app.models.password_reset import PasswordResetRequest
+from app.models.published_report import PublishedReport
 from app.models.result import Result, ResultAuditLog
 from app.models.revoked_token import RevokedToken
 from app.models.school_class import SchoolClass
 from app.models.school_settings import SchoolSettings
 from app.models.student import Student
+from app.models.student_enrollment import CredentialAudit, EnrollmentAudit, StudentEnrollment, StudentNumberSequence, TeacherCredentialAudit
 from app.models.subject import Subject
 from app.models.submission import ResultSubmission
 from app.models.teacher import Teacher
@@ -61,6 +66,7 @@ __all__ = [
     "GradeBand",
     "LoginAttempt",
     "PasswordResetRequest",
+    "PublishedReport",
     "ExaminationStatus",
     "Gender",
     "ResetRequestStatus",
@@ -71,6 +77,14 @@ __all__ = [
     "SchoolClass",
     "SchoolSettings",
     "Student",
+    "StudentEnrollment",
+    "StudentEnrollmentStatus",
+    "StudentNumberSequence",
+    "CredentialAudit",
+    "TeacherCredentialAudit",
+    "EnrollmentAudit",
+    "FormLevel",
+    "ProgressionAction",
     "StudentSubject",
     "Subject",
     "SubjectLevel",

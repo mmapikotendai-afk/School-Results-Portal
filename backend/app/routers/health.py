@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Response, status
 
 from app import __version__
 from app.config import settings
@@ -13,20 +13,21 @@ router = APIRouter(tags=["Health"])
 
 
 @router.get("/health", response_model=HealthStatus, summary="Service health check")
-def health_check() -> HealthStatus:
+def health_check(response: Response) -> HealthStatus:
     """Report API liveness and MySQL connectivity.
 
-    Always returns 200 so the frontend can render a useful status banner even
-    while the database is still being configured.
+    Returns 503 when the database is unavailable, with a safe public message.
     """
-    db_ok, db_error = check_database_connection()
+    db_ok, _db_error = check_database_connection()
+    if not db_ok:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     return HealthStatus(
         status="ok" if db_ok else "degraded",
         service=settings.APP_NAME,
         version=__version__,
         environment=settings.ENVIRONMENT,
         database="connected" if db_ok else "disconnected",
-        database_error=db_error if not db_ok else None,
+        database_error="The database is currently unavailable." if not db_ok else None,
         timestamp=datetime.now(timezone.utc).isoformat(),
     )
 

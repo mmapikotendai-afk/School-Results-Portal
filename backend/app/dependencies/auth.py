@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.auth.errors import (
     FORBIDDEN_ERROR,
     INACTIVE_ERROR,
+    PASSWORD_CHANGE_REQUIRED_ERROR,
     AuthErrorCode,
     auth_error,
 )
@@ -23,9 +24,10 @@ from app.database import get_db
 from app.models.enums import UserRole
 from app.models.revoked_token import RevokedToken
 from app.models.user import User
+from app.services.student_access_service import has_active_current_enrollment
 
 
-def get_current_user(
+def get_authenticated_user(
     request: Request,
     token: Optional[str] = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
@@ -100,6 +102,13 @@ def get_current_user(
     return user
 
 
+def get_current_user(user: User = Depends(get_authenticated_user)) -> User:
+    """Authenticated user allowed to use the portal after first-login setup."""
+    if user.must_change_password:
+        raise PASSWORD_CHANGE_REQUIRED_ERROR
+    return user
+
+
 def get_current_active_user(user: User = Depends(get_current_user)) -> User:
     """Alias kept for readability at call sites. get_current_user already
     rejects inactive accounts, so this is the same guarantee under a clearer name.
@@ -118,9 +127,13 @@ def require_roles(*roles: UserRole):
     """
     allowed = set(roles)
 
-    def _check_role(user: User = Depends(get_current_user)) -> User:
+    def _check_role(
+        user: User = Depends(get_current_user), db: Session = Depends(get_db)
+    ) -> User:
         if user.role not in allowed:
             raise FORBIDDEN_ERROR
+        if user.role == UserRole.STUDENT and not has_active_current_enrollment(db, user):
+            raise INACTIVE_ERROR
         return user
 
     return _check_role

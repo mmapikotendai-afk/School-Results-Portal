@@ -113,7 +113,9 @@ class CatalogService:
         if self.db.query(SchoolClass.id).filter(SchoolClass.name == payload.name).first():
             return None, f"A class named {payload.name} already exists."
 
-        school_class = SchoolClass(name=payload.name, level=payload.level)
+        school_class = SchoolClass(
+            name=payload.name, level=payload.level, form_level=payload.form_level
+        )
         self.db.add(school_class)
         self.db.commit()
         self.db.refresh(school_class)
@@ -136,6 +138,9 @@ class CatalogService:
 
         for field, value in data.items():
             setattr(school_class, field, value)
+
+        if school_class.form_level.academic_level != school_class.level:
+            return None, "The class academic level does not match its Form."
 
         self.db.commit()
         self.db.refresh(school_class)

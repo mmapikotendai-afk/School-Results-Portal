@@ -21,6 +21,7 @@ class AuthErrorCode(str):
     PASSWORD_MISMATCH = "password_mismatch"
     WEAK_PASSWORD = "weak_password"
     TOO_MANY_ATTEMPTS = "too_many_attempts"
+    PASSWORD_CHANGE_REQUIRED = "password_change_required"
 
 
 def auth_error(
@@ -52,6 +53,12 @@ INACTIVE_ERROR = auth_error(
 FORBIDDEN_ERROR = auth_error(
     AuthErrorCode.INSUFFICIENT_ROLE,
     "You do not have permission to perform this action.",
+    status_code=status.HTTP_403_FORBIDDEN,
+)
+
+PASSWORD_CHANGE_REQUIRED_ERROR = auth_error(
+    AuthErrorCode.PASSWORD_CHANGE_REQUIRED,
+    "Change your temporary password before continuing.",
     status_code=status.HTTP_403_FORBIDDEN,
 )
 

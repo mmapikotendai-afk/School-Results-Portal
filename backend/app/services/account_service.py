@@ -39,6 +39,12 @@ class AccountService:
         """
         email = payload.email.strip().lower()
 
+        if payload.role == UserRole.STUDENT:
+            return (
+                "Create students through the admissions endpoint so their permanent "
+                "student number and yearly enrollment are generated safely."
+            )
+
         if self.db.query(User.id).filter(User.email == email).first():
             return "An account with that email address already exists."
 
@@ -46,17 +52,6 @@ class AccountService:
             taken = self.db.query(User.id).filter(User.username == payload.username).first()
             if taken:
                 return "That username is already taken."
-
-        if payload.role == UserRole.STUDENT:
-            if not payload.student_number:
-                return "A student number is required for a student account."
-            existing = (
-                self.db.query(Student.id)
-                .filter(Student.student_number == payload.student_number.strip())
-                .first()
-            )
-            if existing:
-                return "That student number is already assigned."
 
         if payload.role == UserRole.TEACHER:
             if not payload.employee_number:

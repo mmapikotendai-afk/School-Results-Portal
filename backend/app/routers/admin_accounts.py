@@ -10,7 +10,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.config import settings
 from app.database import get_db
 from app.dependencies.auth import require_admin
 from app.models.enums import UserRole
@@ -141,8 +140,7 @@ def set_account_status(
 
 def _delivery(user: User, result) -> CredentialDelivery:
     """The delivery outcome, in the shape the admin UI reads."""
-    domain = (settings.STUDENT_EMAIL_DOMAIN or "").strip().lower()
-    real_mailbox = bool(domain) and not user.email.strip().lower().endswith(f"@{domain}")
+    real_mailbox = bool(user.email)
     return CredentialDelivery(
         email=user.email,
         status=result.status,

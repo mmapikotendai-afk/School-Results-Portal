@@ -20,7 +20,7 @@ from app.auth.jwt import decode_access_token
 from app.auth.scheme import oauth2_scheme
 from app.auth.session import attach_session, clear_session, token_from_request
 from app.database import get_db
-from app.dependencies.auth import get_current_user
+from app.dependencies.auth import get_authenticated_user
 from app.models.user import User
 from app.schemas.auth import (
     ChangePasswordRequest,
@@ -41,7 +41,10 @@ from app.utils.rate_limit import login_buckets, reset_request_buckets
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
-@router.post("/login", response_model=LoginResponse, summary="Sign in")
+@router.post(
+    "/login", response_model=LoginResponse, response_model_exclude_none=True,
+    summary="Sign in"
+)
 def login(
     payload: LoginRequest,
     request: Request,
@@ -99,7 +102,7 @@ def login(
     # The session travels as an httpOnly cookie: unreadable to script, and
     # gone when the browser closes. The token is still returned in the body
     # so that API clients and the interactive docs keep working unchanged.
-    csrf = attach_session(response, token, expires_in)
+    csrf = attach_session(response, token)
     response.headers["X-CSRF-Token"] = csrf
 
     return LoginResponse(
@@ -134,8 +137,11 @@ def logout(
     return Message(detail="You have been signed out.")
 
 
-@router.get("/me", response_model=UserProfile, summary="Current user profile")
-def read_current_user(user: User = Depends(get_current_user)) -> UserProfile:
+@router.get(
+    "/me", response_model=UserProfile, response_model_exclude_none=True,
+    summary="Current user profile"
+)
+def read_current_user(user: User = Depends(get_authenticated_user)) -> UserProfile:
     """Return the signed-in user profile; used to restore a session on reload."""
     return AuthService.to_profile(user)
 
@@ -149,7 +155,7 @@ def change_password(
     payload: ChangePasswordRequest,
     request: Request,
     response: Response,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_authenticated_user),
     db: Session = Depends(get_db),
 ) -> ChangePasswordResponse:
     """Replace the caller password, then end every session they hold.

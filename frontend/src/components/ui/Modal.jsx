@@ -53,7 +53,7 @@ export function Modal({ open, onClose, title, description, size = 'md', footer, 
       aria-labelledby={titleId}
       className={cx(
         'bg-ink-900/50 m-0 h-full max-h-none w-full max-w-none justify-center overflow-y-auto p-0 backdrop:bg-transparent',
-        'flex items-start sm:items-center',
+        'flex items-center p-3 sm:p-6',
       )}
       onClick={(event) => {
         // Clicking the backdrop (the dialog element itself) closes it.
@@ -62,12 +62,12 @@ export function Modal({ open, onClose, title, description, size = 'md', footer, 
     >
       <div
         className={cx(
-          'shadow-overlay my-auto w-full rounded-xl bg-white',
-          'mx-auto p-0 sm:my-8',
+          'shadow-overlay my-auto flex max-h-[calc(100dvh-32px)] w-full flex-col rounded-xl bg-white animate-[dialog-enter_160ms_ease-out]',
+          'mx-auto p-0',
           SIZES[size],
         )}
       >
-        <div className="border-ink-200 flex items-start gap-4 border-b px-5 py-4">
+        <div className="border-ink-200 flex shrink-0 items-start gap-4 border-b px-5 py-4">
           <div className="min-w-0 flex-1">
             <h2 id={titleId} className="text-lg font-semibold">
               {title}
@@ -77,6 +77,7 @@ export function Modal({ open, onClose, title, description, size = 'md', footer, 
           <button
             type="button"
             onClick={onClose}
+            disabled={!onClose}
             className="text-ink-400 hover:bg-ink-100 hover:text-ink-700 -mt-1 -mr-1 rounded-lg p-2 transition-colors"
             aria-label="Close"
           >
@@ -84,10 +85,10 @@ export function Modal({ open, onClose, title, description, size = 'md', footer, 
           </button>
         </div>
 
-        <div className="max-h-[70vh] overflow-y-auto px-5 py-5">{children}</div>
+        <div className="min-h-0 overflow-y-auto px-5 py-5">{children}</div>
 
         {footer && (
-          <div className="border-ink-200 bg-ink-50 flex flex-wrap items-center justify-end gap-2 rounded-b-xl border-t px-5 py-4">
+          <div className="border-ink-200 bg-ink-50 flex shrink-0 flex-wrap items-center justify-end gap-2 rounded-b-xl border-t px-5 py-4">
             {footer}
           </div>
         )}

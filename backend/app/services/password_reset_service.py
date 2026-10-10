@@ -20,7 +20,7 @@ from typing import List, Optional, Tuple
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
-from app.models.enums import ResetRequestStatus
+from app.models.enums import ResetRequestStatus, UserRole
 from app.models.password_reset import PasswordResetRequest
 from app.models.user import User
 from app.services.provisioning_service import DeliveryResult, ProvisioningService
@@ -31,7 +31,8 @@ logger = logging.getLogger(__name__)
 # What every caller of raise_request is told, whatever actually happened.
 ACKNOWLEDGEMENT = (
     "If that account exists, the school office has been notified and will "
-    "reissue your password. You will receive an email once they have."
+    "follow its identity-verification process. Students should contact the "
+    "school administration directly."
 )
 
 
@@ -90,6 +91,11 @@ class PasswordResetService:
 
         if user is None:
             logger.info("Password reset requested for unknown identifier.")
+            return
+
+        # Student and teacher recovery is an in-person/offline school process.
+        # Neither role has an email-based credential channel.
+        if user.role in {UserRole.STUDENT, UserRole.TEACHER}:
             return
 
         # A deactivated account is not reinstated by asking for a password.
@@ -169,6 +175,13 @@ class PasswordResetService:
             return None, (
                 "That account is deactivated. Reactivate it first if this "
                 "person should be able to sign in."
+            )
+
+        if request.user.role in {UserRole.STUDENT, UserRole.TEACHER}:
+            page = "Students" if request.user.role == UserRole.STUDENT else "Teachers"
+            return None, (
+                f"Verify identity offline, then use Reset password on the {page} "
+                "page to download a one-time credential slip."
             )
 
         # Generates a temporary password, invalidates every session the

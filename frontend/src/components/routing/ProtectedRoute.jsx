@@ -16,7 +16,7 @@ import { homePathForRole } from '@/utils/roles'
  * forwarded, and signing in must always begin at the account's own home
  * rather than wherever a shared link happened to point.
  */
-export function ProtectedRoute({ allowedRoles }) {
+export function ProtectedRoute({ allowedRoles, allowPasswordChange = false }) {
   const { isAuthenticated, initialising, user } = useAuth()
 
   if (initialising) {
@@ -25,6 +25,14 @@ export function ProtectedRoute({ allowedRoles }) {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />
+  }
+
+  if (user.must_change_password && !allowPasswordChange) {
+    return <Navigate to="/change-password" replace />
+  }
+
+  if (!user.must_change_password && allowPasswordChange) {
+    return <Navigate to={homePathForRole(user.role)} replace />
   }
 
   if (allowedRoles?.length && !allowedRoles.includes(user.role)) {

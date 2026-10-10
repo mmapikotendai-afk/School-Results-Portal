@@ -37,8 +37,21 @@ export const studentService = {
    * generates a new one, which invalidates the old password and ends every
    * session the account holds. No password is returned here.
    */
-  resendCredentials: (id) =>
-    unwrap(apiClient.post(`/admin/students/${id}/resend-credentials`)),
+  resetCredentials: (id, adminPassword) =>
+    unwrap(
+      apiClient.post(`/admin/students/${id}/reset-credentials`, {
+        admin_password: adminPassword,
+      }),
+    ),
+  consumeCredentialBatch: (batchId) =>
+    unwrap(apiClient.post(`/admin/students/credential-batches/${batchId}/consume`)),
+  setEnrollmentStatus: (id, status, academicYearId) =>
+    unwrap(
+      apiClient.patch(`/admin/students/${id}/enrollment-status`, {
+        status,
+        academic_year_id: academicYearId ?? null,
+      }),
+    ),
 }
 
 export const teacherService = {
@@ -55,9 +68,10 @@ export const teacherService = {
         academic_year_id: academicYearId ?? null,
       }),
     ),
-  /** As studentService.resendCredentials: a new password, emailed, never returned. */
-  resendCredentials: (id) =>
-    unwrap(apiClient.post(`/admin/teachers/${id}/resend-credentials`)),
+  resetCredentials: (id, adminPassword) =>
+    unwrap(apiClient.post(`/admin/teachers/${id}/reset-credentials`, { admin_password: adminPassword })),
+  consumeCredentialBatch: (batchId) =>
+    unwrap(apiClient.post(`/admin/teachers/credential-batches/${batchId}/consume`)),
 }
 
 export const subjectService = {
@@ -75,6 +89,19 @@ export const classService = {
   update: (id, payload) => unwrap(apiClient.put(`/admin/classes/${id}`, payload)),
   setStatus: (id, isActive) =>
     unwrap(apiClient.patch(`/admin/classes/${id}/status`, { is_active: isActive })),
+}
+
+export const progressionService = {
+  roster: (params) => unwrap(apiClient.get('/admin/progression/roster', { params })),
+  preview: (payload) => unwrap(apiClient.post('/admin/progression/preview', payload)),
+  confirm: (payload) => unwrap(apiClient.post('/admin/progression/confirm', payload)),
+  confirmReturn: (studentIds, academicYearId) =>
+    unwrap(apiClient.post('/admin/progression/confirm-return', {
+      student_ids: studentIds,
+      academic_year_id: academicYearId,
+    })),
+  history: (studentId) => unwrap(apiClient.get(`/admin/progression/students/${studentId}/history`)),
+  audit: (studentId) => unwrap(apiClient.get(`/admin/progression/students/${studentId}/audit`)),
 }
 
 export const academicService = {
@@ -187,12 +214,13 @@ export const studentImportService = {
    * than an ordinary request. Timing out here would leave the administrator
    * unsure how much of the class had been created.
    */
-  commit: ({ file, classId, academicYearId, subjectIds }) => {
+  commit: ({ file, classId, academicYearId, subjectIds, adminPassword }) => {
     const body = new FormData()
     body.append('file', file)
     body.append('class_id', String(classId))
     if (academicYearId) body.append('academic_year_id', String(academicYearId))
     body.append('subject_ids', (subjectIds ?? []).join(','))
+    body.append('admin_password', adminPassword)
     return unwrap(
       apiClient.post('/admin/students/import', body, {
         headers: { 'Content-Type': undefined },

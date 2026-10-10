@@ -32,8 +32,8 @@ export function ProfilePanel() {
       <CardBody>
         <dl>
           <Row label="Full name">{user.full_name}</Row>
-          <Row label="Email address">{user.email}</Row>
-          {user.username && <Row label="Username">{user.username}</Row>}
+          {user.role !== 'STUDENT' && <Row label="Email address">{user.email}</Row>}
+          {user.role !== 'STUDENT' && user.username && <Row label="Username">{user.username}</Row>}
           <Row label="Role">{roleLabel(user.role)}</Row>
 
           {user.student_number && <Row label="Student number">{user.student_number}</Row>}

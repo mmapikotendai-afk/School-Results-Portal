@@ -4,7 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import EmptyState from '@/components/common/EmptyState'
 import PageHeader from '@/components/common/PageHeader'
 import Toast from '@/components/common/Toast'
-import { Alert, Badge, Button, Card, CardBody, PageLoader } from '@/components/ui'
+import { DataTable, Alert, Badge, Button, Card, CardBody, PageLoader } from '@/components/ui'
 import useAsyncData from '@/hooks/useAsyncData'
 import useToast from '@/hooks/useToast'
 import useDocumentTitle from '@/hooks/useDocumentTitle'
@@ -62,43 +62,12 @@ function ExaminationCard({ entry, onDownload, busy }) {
         </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[26rem] border-collapse text-sm">
-          <thead>
-            <tr className="border-ink-200 border-b">
-              <th scope="col" className="text-ink-500 px-5 py-2.5 text-left text-xs font-semibold tracking-wide uppercase">
-                Subject
-              </th>
-              <th scope="col" className="text-ink-500 px-5 py-2.5 text-right text-xs font-semibold tracking-wide uppercase">
-                Mark
-              </th>
-              <th scope="col" className="text-ink-500 px-5 py-2.5 text-right text-xs font-semibold tracking-wide uppercase">
-                Grade
-              </th>
-              <th scope="col" className="text-ink-500 px-5 py-2.5 text-left text-xs font-semibold tracking-wide uppercase">
-                Remark
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-ink-100 divide-y">
-            {entry.results.map((row) => (
-              <tr key={row.subject_id}>
-                <td className="px-5 py-3">
-                  <p className="text-ink-900 font-medium">{row.subject_name}</p>
-                  <p className="text-ink-400 font-mono text-xs">{row.subject_code}</p>
-                </td>
-                <td className="text-ink-900 px-5 py-3 text-right font-semibold tabular-nums">
-                  {Number(row.marks).toFixed(0)}
-                </td>
-                <td className="px-5 py-3 text-right">
-                  <Badge tone={gradeTone(row.grade)}>{row.grade ?? '—'}</Badge>
-                </td>
-                <td className="text-ink-600 px-5 py-3">{row.remarks ?? '—'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <DataTable rows={entry.results} rowKey={row => row.subject_id} columns={[
+        { key: 'subject_name', header: 'Subject', primary: true, render: row => <div><p className="font-medium text-ink-900">{row.subject_name}</p><p className="mt-1 text-xs text-ink-500">{row.subject_code}</p></div> },
+        { key: 'marks', header: 'Mark /100', align: 'right', render: row => <span className="font-semibold tabular-nums">{Number(row.marks).toFixed(0)}</span> },
+        { key: 'grade', header: 'Grade', align: 'right', render: row => <Badge tone={gradeTone(row.grade)}>{row.grade ?? '?'}</Badge> },
+        { key: 'remarks', header: 'Remark', render: row => row.remarks ?? '?' },
+      ]} />
 
       <div className="border-ink-200 bg-ink-50 flex flex-wrap items-center gap-6 border-t px-5 py-3">
         <div>

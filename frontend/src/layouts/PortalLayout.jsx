@@ -1,68 +1,56 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
-
 import Sidebar from '@/layouts/Sidebar'
 import Topbar from '@/layouts/Topbar'
 import useAuth from '@/hooks/useAuth'
 
-/** Authenticated shell: fixed sidebar on desktop, slide-over drawer on mobile. */
 export function PortalLayout() {
   const { user } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem('portal.nav.collapsed') === 'true')
+  const drawer = useRef(null)
   const location = useLocation()
-
-  // Close the drawer whenever the route changes. Adjusting state during
-  // render (rather than in an effect) avoids a second render pass.
   const [lastPath, setLastPath] = useState(location.pathname)
-  if (lastPath !== location.pathname) {
-    setLastPath(location.pathname)
-    setMenuOpen(false)
-  }
-
-  // Stop the page behind the drawer from scrolling.
+  if (lastPath !== location.pathname) { setLastPath(location.pathname); setMenuOpen(false) }
   useEffect(() => {
+    const node = drawer.current
+    if (menuOpen && !node.open) node.showModal()
+    else if (!menuOpen && node.open) node.close()
     document.body.style.overflow = menuOpen ? 'hidden' : ''
-    return () => {
-      document.body.style.overflow = ''
-    }
+    return () => { document.body.style.overflow = '' }
   }, [menuOpen])
-
+  useEffect(() => {
+    const desktop = window.matchMedia('(min-width: 1024px)')
+    const closeOnDesktop = event => { if (event.matches) setMenuOpen(false) }
+    desktop.addEventListener('change', closeOnDesktop)
+    return () => desktop.removeEventListener('change', closeOnDesktop)
+  }, [])
+  function toggleRail() {
+    setCollapsed(value => {
+      localStorage.setItem('portal.nav.collapsed', String(!value))
+      return !value
+    })
+  }
   return (
-    <div className="flex min-h-dvh">
-      <div className="hidden shrink-0 lg:block">
-        <div className="fixed inset-y-0 left-0 w-72">
-          <Sidebar role={user?.role} />
+    <div className="portal-shell flex min-h-dvh" data-collapsed={collapsed}>
+      <a href="#main-content" className="skip-link">Skip to content</a>
+      <aside className="portal-rail hidden shrink-0 lg:block">
+        <div className="portal-rail fixed inset-y-0 left-0 z-40">
+          <Sidebar role={user?.role} collapsed={collapsed} onToggle={toggleRail} />
         </div>
-        <div className="w-72" aria-hidden="true" />
-      </div>
-
-      {menuOpen && (
-        <div className="fixed inset-0 z-40 lg:hidden">
-          <button
-            type="button"
-            className="bg-ink-900/50 absolute inset-0"
-            onClick={() => setMenuOpen(false)}
-            aria-label="Close navigation menu"
-          />
-          <div className="shadow-overlay absolute inset-y-0 left-0">
-            <Sidebar role={user?.role} onNavigate={() => setMenuOpen(false)} />
-          </div>
+      </aside>
+      <dialog ref={drawer} aria-label="Navigation" className="nav-drawer" onCancel={() => setMenuOpen(false)} onClose={() => setMenuOpen(false)} onClick={event => { if (event.target === event.currentTarget) setMenuOpen(false) }}>
+        <div className="h-full w-[min(288px,85vw)]">
+          <Sidebar role={user?.role} onNavigate={() => setMenuOpen(false)} onClose={() => setMenuOpen(false)} />
         </div>
-      )}
-
+      </dialog>
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* The crest rule: navy with a vermilion head. It is the one mark
-            that appears on every authenticated screen. */}
-        <div className="masthead-rule" aria-hidden="true" />
-        <Topbar onOpenMenu={() => setMenuOpen(true)} />
-        <main className="flex-1 px-4 py-8 sm:px-6 lg:px-10">
-          <div className="mx-auto w-full max-w-7xl">
-            <Outlet />
-          </div>
+        <Topbar onOpenMenu={() => setMenuOpen(true)} menuOpen={menuOpen} />
+        <main id="main-content" tabIndex={-1} className="flex-1 px-4 py-7 outline-none sm:px-7 lg:px-9 lg:py-9">
+          <div className="mx-auto w-full max-w-[1320px]"><Outlet /></div>
         </main>
       </div>
     </div>
   )
 }
-
 export default PortalLayout

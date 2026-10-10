@@ -184,7 +184,11 @@ def save_mark_sheet(
                 detail="One of those students is not enrolled in this subject.",
             )
 
-        level = student.school_class.level if student.school_class else EducationLevel.O_LEVEL
+        from app.services.enrollment_context import student_academic_level
+        level = student_academic_level(
+            db, student.id, year_id,
+            student.school_class.level if student.school_class else EducationLevel.O_LEVEL,
+        )
         apply_single_mark(
             db,
             existing.get(entry.student_id),
@@ -236,10 +240,14 @@ def update_result(
     )
     _require_writable(service, exam)
 
-    level = (
+    fallback_level = (
         result.student.school_class.level
         if result.student and result.student.school_class
         else EducationLevel.O_LEVEL
+    )
+    from app.services.enrollment_context import student_academic_level
+    level = student_academic_level(
+        db, result.student_id, exam.term.academic_year_id, fallback_level
     )
     apply_single_mark(
         db, result, result.student_id, exam, subject,

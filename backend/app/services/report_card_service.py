@@ -14,6 +14,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import List, Optional, Sequence
 
+from fastapi import HTTPException
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.academic_year import Term
@@ -25,6 +26,7 @@ from app.models.school_settings import SchoolSettings
 from app.models.student import Student
 from app.models.subject import Subject
 from app.services.grading_service import GradingService
+from app.services.publication_service import published_context, grade_from_context
 from app.services.results_engine import ResultsEngine
 
 
@@ -98,6 +100,9 @@ class ReportCardService:
         the subjects they are assigned; a student and an administrator pass
         None, meaning everything the student studies.
         """
+        if exam.status == ExaminationStatus.PUBLISHED:
+            return self._published(student, exam, school, subject_ids, scope_note, include_position)
+
         results = {
             r.subject_id: r
             for r in self.engine.for_student(student.id, exam.id)
@@ -106,11 +111,15 @@ class ReportCardService:
 
         enrolled = self._enrolled_subjects(student, exam, subject_ids)
 
+        from app.services.enrollment_context import student_enrollment_for
+        enrollment = student_enrollment_for(self.db, student.id, exam.term.academic_year_id)
         card = ReportCard(
             school=school,
             student_number=student.student_number,
             student_name=student.full_name,
-            class_name=student.school_class.name if student.school_class else None,
+            class_name=enrollment.class_name_snapshot if enrollment else (
+                student.school_class.name if student.school_class else None
+            ),
             examination_name=exam.name,
             term_name=exam.term.name if exam.term else None,
             academic_year_name=(
@@ -169,6 +178,55 @@ class ReportCardService:
         self._summarise(card, student, exam, include_position)
         return card
 
+    def _published(
+        self,
+        student: Student,
+        exam: Examination,
+        school: SchoolSettings,
+        subject_ids: Optional[Sequence[int]],
+        scope_note: Optional[str],
+        include_position: bool,
+    ) -> ReportCard:
+        saved = published_context(self.db, exam, student.id)
+        if saved is None:
+            # Never silently rebuild a published report from today's roll.
+            raise HTTPException(404, "No report card is available for that examination.")
+        context = saved.context
+        card = ReportCard(
+            school=school,
+            **{key: context[key] for key in (
+                "student_number", "student_name", "class_name", "examination_name",
+                "term_name", "academic_year_name",
+            )},
+            is_published=True,
+            scope_note=scope_note,
+        )
+        allowed = set(subject_ids) if subject_ids is not None else None
+        results = {r.subject_id: r for r in self.engine.for_student(student.id, exam.id)}
+        for subject in context["subjects"]:
+            if allowed is not None and (subject["id"] not in allowed or not subject["studied"]):
+                continue
+            result = results.get(subject["id"]) if subject["studied"] else None
+            card.lines.append(ReportLine(
+                subject_name=subject["name"], subject_code=subject["code"],
+                marks=result.marks if result else None,
+                grade=result.grade if result else None,
+                remarks=result.remarks if result else None,
+                is_blank=result is None,
+            ))
+        marked = [line for line in card.lines if line.marks is not None]
+        card.subjects_counted = len(marked)
+        if marked:
+            card.total_marks = sum((line.marks for line in marked), Decimal("0"))
+            card.average = round(float(card.total_marks) / len(marked), 2)
+            grade, remark = grade_from_context(Decimal(str(card.average)), context)
+            card.overall = f"{grade} - {remark}"
+            if include_position and context["show_position"]:
+                card.position, card.ranked_out_of = self.engine.position_of(
+                    student.id, exam, saved.class_id
+                )
+        return card
+
     def _enrolled_subjects(
         self,
         student: Student,
@@ -212,7 +270,11 @@ class ReportCardService:
             card.total_marks = sum((line.marks for line in marked), Decimal("0"))
             card.average = round(float(card.total_marks) / len(marked), 2)
 
-            level = student.school_class.level if student.school_class else None
+            from app.services.enrollment_context import student_academic_level, student_enrollment_for
+            level = student_academic_level(
+                self.db, student.id, exam.term.academic_year_id,
+                student.school_class.level if student.school_class else None,
+            )
             grade, remark = self.grading.grade_for(Decimal(str(card.average)), level)
             card.overall = f"{grade} - {remark}"
 
@@ -222,8 +284,12 @@ class ReportCardService:
         if show_position and marked:
             # Position is against the student's own class, which is the
             # comparison a report card is understood to make.
+            year_enrollment = student_enrollment_for(
+                self.db, student.id, exam.term.academic_year_id
+            )
             position, out_of = self.engine.position_of(
-                student.id, exam, student.class_id
+                student.id, exam,
+                year_enrollment.class_id if year_enrollment else student.class_id,
             )
             card.position = position
             card.ranked_out_of = out_of

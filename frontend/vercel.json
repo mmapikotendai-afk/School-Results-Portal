@@ -5,6 +5,10 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
+      "source": "/uploads/:path*",
+      "destination": "https://school-results-portal-api.onrender.com/uploads/:path*"
+    },
+    {
       "source": "/api/:path*",
       "destination": "https://school-results-portal-api.onrender.com/api/:path*"
     },

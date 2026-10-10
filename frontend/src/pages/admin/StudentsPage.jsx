@@ -6,14 +6,16 @@ import PageHeader from '@/components/common/PageHeader'
 import StudentFormModal from '@/components/admin/StudentFormModal'
 import StudentSubjectsModal from '@/components/admin/StudentSubjectsModal'
 import StudentViewModal from '@/components/admin/StudentViewModal'
+import CredentialSlips from '@/components/admin/CredentialSlips'
 import Toast from '@/components/common/Toast'
 import {
   Alert,
-  Badge,
   Button,
   Card,
   ConfirmDialog,
   DataTable,
+  Input,
+  Modal,
   Pagination,
   RowAction,
   SearchInput,
@@ -44,6 +46,10 @@ export function StudentsPage() {
   const [viewing, setViewing] = useState(null)
   const [confirming, setConfirming] = useState(null)
   const [resending, setResending] = useState(null)
+  const [adminPassword, setAdminPassword] = useState('')
+  const [resetSlip, setResetSlip] = useState(null)
+  const [resetError, setResetError] = useState(null)
+  const [resetBusy, setResetBusy] = useState(false)
   const { toast, show, clear } = useToast()
 
   const query = useMemo(
@@ -86,21 +92,29 @@ export function StudentsPage() {
   }
 
 
-  /**
-   * Issue a new temporary password and email it.
-   *
-   * The server generates the password; nothing readable comes back here. The
-   * old password stops working at once, so this is a real reset rather than a
-   * repeat of the original message.
-   */
-  async function resendCredentials(row) {
-    const result = await studentService.resendCredentials(row.id)
-    show(
-      result.sent
-        ? `New sign-in details sent to ${result.email}.`
-        : `Could not email ${result.email}. ${result.detail}`,
-      result.sent ? 'success' : 'danger',
-    )
+  /** Issue a new one-time printable temporary password. */
+  async function resetCredentials() {
+    setResetBusy(true)
+    setResetError(null)
+    try {
+      const slip = await studentService.resetCredentials(resending.id, adminPassword)
+      setResetSlip(slip)
+      setAdminPassword('')
+    } catch (err) {
+      setResetError(getErrorMessage(err))
+    } finally {
+      setResetBusy(false)
+    }
+  }
+
+  async function changeEnrollmentStatus(row, status) {
+    try {
+      await studentService.setEnrollmentStatus(row.id, status)
+      show(`${row.full_name}'s enrollment is now ${status.replaceAll('_', ' ').toLowerCase()}.`)
+      refresh()
+    } catch (err) {
+      show(getErrorMessage(err), 'danger')
+    }
   }
 
   const columns = [
@@ -114,10 +128,11 @@ export function StudentsPage() {
     {
       key: 'full_name',
       header: 'Name',
+      primary: true,
       render: (row) => (
         <div className="min-w-0">
           <p className="text-ink-900 font-medium">{row.full_name}</p>
-          <p className="text-ink-400 truncate text-xs">{row.email}</p>
+          <p className="text-ink-400 truncate text-xs">{row.student_number}</p>
         </div>
       ),
     },
@@ -156,9 +171,20 @@ export function StudentsPage() {
       key: 'status',
       header: 'Status',
       render: (row) => (
-        <Badge tone={row.is_active ? 'success' : 'neutral'}>
-          {row.is_active ? 'Active' : 'Inactive'}
-        </Badge>
+        <Select
+          aria-label={`Enrollment status for ${row.full_name}`}
+          value={row.enrollment_status || 'PENDING_RETURN'}
+          onClick={(event) => event.stopPropagation()}
+          onChange={(event) => changeEnrollmentStatus(row, event.target.value)}
+          className="min-w-[10rem]"
+          options={[
+            { value: 'ACTIVE', label: 'Active' },
+            { value: 'PENDING_RETURN', label: 'Pending return' },
+            { value: 'TRANSFERRED_OUT', label: 'Transferred out' },
+            { value: 'WITHDRAWN_NOT_RETURNED', label: 'Withdrawn' },
+            { value: 'COMPLETED', label: 'Completed' },
+          ]}
+        />
       ),
     },
     {
@@ -180,9 +206,14 @@ export function StudentsPage() {
             onClick={() => setSubjectsFor(row)}
           />
           <RowAction
-            icon="paper-plane"
-            label="Resend login credentials"
-            onClick={() => setResending(row)}
+            icon="key"
+            label="Reset password and print credentials"
+            onClick={() => {
+              setResending(row)
+              setResetSlip(null)
+              setResetError(null)
+              setAdminPassword('')
+            }}
           />
           <RowAction
             icon={row.is_active ? 'ban' : 'circle-check'}
@@ -231,7 +262,7 @@ export function StudentsPage() {
           <SearchInput
             value={search}
             onChange={resetTo(setSearch)}
-            placeholder="Search by name, student number or email"
+            placeholder="Search by name or student number"
             className="min-w-[16rem] flex-1"
           />
           <Select
@@ -332,20 +363,45 @@ export function StudentsPage() {
         />
       )}
 
-      <ConfirmDialog
+      <Modal
         open={Boolean(resending)}
         onClose={() => setResending(null)}
-        onConfirm={() => resendCredentials(resending)}
-        title="Resend login credentials?"
-        message={`A new temporary password will be generated and emailed to ${resending?.email}.`}
-        detail={
-          `This replaces the password ${resending?.full_name} has now. Their current ` +
-          `password stops working immediately and they will be signed out of any ` +
-          `session. Nobody sees the new password but them.`
+        title={resetSlip ? 'One-time credential slip' : 'Reset student password'}
+        description={resending ? `${resending.full_name} · ${resending.student_number}` : ''}
+        footer={
+          !resetSlip ? (
+            <>
+              <Button variant="secondary" onClick={() => setResending(null)}>Cancel</Button>
+              <Button onClick={resetCredentials} loading={resetBusy} disabled={!adminPassword} icon="key">
+                Issue temporary password
+              </Button>
+            </>
+          ) : (
+            <Button variant="secondary" onClick={() => setResending(null)}>Close</Button>
+          )
         }
-        confirmLabel="Generate and send"
-        icon="paper-plane"
-      />
+      >
+        {resetSlip ? (
+          <CredentialSlips slips={[resetSlip]} />
+        ) : (
+          <div className="space-y-4">
+            <Alert tone="warning">
+              Complete the school&rsquo;s offline identity check first. The old password
+              cannot be viewed; this action replaces it and ends existing sessions.
+            </Alert>
+            {resetError && <Alert tone="danger">{resetError}</Alert>}
+            <Input
+              label="Your administrator password"
+              type="password"
+              autoComplete="current-password"
+              value={adminPassword}
+              onChange={(event) => setAdminPassword(event.target.value)}
+              disabled={resetBusy}
+              required
+            />
+          </div>
+        )}
+      </Modal>
 
       <ConfirmDialog
         open={Boolean(confirming)}

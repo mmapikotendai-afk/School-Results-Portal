@@ -3,9 +3,9 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.models.enums import EducationLevel, SubjectLevel
+from app.models.enums import EducationLevel, FormLevel, SubjectLevel
 
 
 def _clean(value: Optional[str]) -> Optional[str]:
@@ -80,6 +80,13 @@ class ClassBase(BaseModel):
     # Free text so any convention works: 1C, Form 4A, Lower 6 Sciences.
     name: str = Field(min_length=1, max_length=60)
     level: EducationLevel
+    form_level: FormLevel
+
+    @model_validator(mode="after")
+    def _matching_level(self):
+        if self.level != self.form_level.academic_level:
+            raise ValueError("The class academic level does not match its Form.")
+        return self
 
     @field_validator("name")
     @classmethod
@@ -94,6 +101,7 @@ class ClassCreate(ClassBase):
 class ClassUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=60)
     level: Optional[EducationLevel] = None
+    form_level: Optional[FormLevel] = None
     is_active: Optional[bool] = None
 
     @field_validator("name")

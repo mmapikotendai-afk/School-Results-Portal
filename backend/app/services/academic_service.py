@@ -365,11 +365,21 @@ class AcademicService:
         if new_status == S.PUBLISHED:
             exam.published_at = utcnow()
             exam.published_by_id = acting_user_id
+            from app.services.publication_service import capture_reports
+
+            capture_reports(self.db, exam)
         else:
             # Pulling an examination back clears the record of its publication;
             # re-publishing is a fresh decision by whoever makes it.
             exam.published_at = None
             exam.published_by_id = None
+            # A deliberately reopened examination gets a fresh context when
+            # published again. Ordinary profile/enrollment edits never do.
+            from app.models.published_report import PublishedReport
+
+            self.db.query(PublishedReport).filter(
+                PublishedReport.examination_id == exam.id
+            ).delete(synchronize_session="fetch")
 
         # Opening submissions is what creates the tracking rows, so the
         # monitor reflects the assignments as they stand at that moment.

@@ -195,6 +195,7 @@ export function UploadDialog({ open, sheet, onClose, onUploaded }) {
             <input
               ref={input}
               type="file"
+              aria-label="Choose a CSV file"
               accept=".csv,text/csv"
               className="sr-only"
               onChange={(e) => {

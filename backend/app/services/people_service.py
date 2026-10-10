@@ -1,5 +1,7 @@
 """Student and teacher management, including enrollment and assignment."""
 
+import uuid
+
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from sqlalchemy import func, or_
@@ -7,9 +9,10 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.models.assignment import TeacherSubject
 from app.models.enrollment import StudentSubject
-from app.models.enums import EnrollmentStatus, UserRole
+from app.models.enums import EducationLevel, EnrollmentStatus, ProgressionAction, StudentEnrollmentStatus, SubjectLevel, UserRole
 from app.models.school_class import SchoolClass
 from app.models.student import Student
+from app.models.student_enrollment import EnrollmentAudit, StudentEnrollment
 from app.models.subject import Subject
 from app.models.teacher import Teacher
 from app.models.user import User
@@ -21,6 +24,7 @@ from app.schemas.people import (
 )
 from app.services.academic_service import AcademicService, utcnow
 from app.utils.security import generate_temporary_password, hash_password
+from app.services.student_credentials_service import StudentCredentialsService
 
 # Kept as a module-level alias: password generation now lives beside hashing
 # and the password policy, so the two cannot drift apart.
@@ -75,7 +79,6 @@ class StudentService:
                     Student.student_number.like(term.upper()),
                     Student.first_name.like(term),
                     Student.last_name.like(term),
-                    User.email.like(term),
                 )
             )
         if class_id:
@@ -103,41 +106,122 @@ class StudentService:
             .first()
         )
 
+    def year_enrollment(
+        self, student_id: int, academic_year_id: Optional[int] = None
+    ) -> Optional[StudentEnrollment]:
+        year_id = self.academic.resolve_year_id(academic_year_id)
+        if not year_id:
+            return None
+        return (
+            self.db.query(StudentEnrollment)
+            .filter(
+                StudentEnrollment.student_id == student_id,
+                StudentEnrollment.academic_year_id == year_id,
+            )
+            .first()
+        )
+
+    def set_enrollment_status(
+        self,
+        student: Student,
+        status: StudentEnrollmentStatus,
+        academic_year_id: Optional[int] = None,
+        actor_user_id: Optional[int] = None,
+    ) -> Tuple[Optional[StudentEnrollment], Optional[str]]:
+        year_id = self.academic.resolve_year_id(academic_year_id)
+        if not year_id:
+            return None, "Choose an academic year."
+        enrollment = self.year_enrollment(student.id, year_id)
+        previous_status = enrollment.status if enrollment else None
+        if enrollment is None:
+            school_class = self.db.get(SchoolClass, student.class_id) if student.class_id else None
+            if school_class is None:
+                return None, "Assign a class before creating an enrollment."
+            enrollment = StudentEnrollment(
+                student_id=student.id,
+                academic_year_id=year_id,
+                class_id=student.class_id,
+                class_name_snapshot=school_class.name,
+                form_level=school_class.form_level,
+                academic_level=school_class.level,
+                status=status,
+            )
+            self.db.add(enrollment)
+        else:
+            enrollment.status = status
+            enrollment.class_id = student.class_id
+        if actor_user_id is not None:
+            self.db.flush()
+            self.db.add(EnrollmentAudit(
+                student_id=student.id,
+                actor_user_id=actor_user_id,
+                action=ProgressionAction.STATUS_CHANGE.value,
+                batch_id=str(uuid.uuid4()),
+                from_academic_year_id=year_id,
+                to_academic_year_id=year_id,
+                from_form_level=enrollment.form_level.value,
+                to_form_level=enrollment.form_level.value,
+                from_class_name=enrollment.class_name_snapshot,
+                to_class_name=enrollment.class_name_snapshot,
+                from_status=previous_status.value if previous_status else None,
+                to_status=status.value,
+            ))
+        if status != StudentEnrollmentStatus.ACTIVE:
+            student.user.token_version += 1
+        self.db.commit()
+        self.db.refresh(enrollment)
+        return enrollment, None
+
     # ------------------------------------------------------- creating
 
     def create(
-        self, payload: StudentCreate
+        self, payload: StudentCreate, commit: bool = True
     ) -> Tuple[Optional[Student], Optional[str], Optional[str]]:
         """Create a student and their portal account.
 
         Returns (student, temporary_password, error). The password is returned
-        to the caller in memory so it can be emailed; it is stored only as a
-        bcrypt hash and must not be placed in an API response.
+        once for the printable slip and stored only as a bcrypt hash.
         """
-        if self.get_by_number(payload.student_number):
-            return None, None, f"Student number {payload.student_number} is already in use."
-
-        if payload.class_id and not self.db.query(SchoolClass.id).filter(
+        if not payload.class_id:
+            return None, None, "Choose the class for this admission."
+        if not self.db.query(SchoolClass.id).filter(
             SchoolClass.id == payload.class_id
         ).first():
             return None, None, "That class does not exist."
 
-        # Required by the schema, so there is no derived-address fallback here
-        # any more: every new student has a real mailbox to be emailed at.
-        email = str(payload.email).strip().lower()
-        if self.db.query(User.id).filter(User.email == email).first():
-            return None, None, f"An account already exists for {email}."
+        year_id = self.academic.resolve_year_id(payload.academic_year_id)
+        if not year_id:
+            return None, None, "Choose an academic year for this admission."
 
-        # The student number doubles as the username, so a learner can sign in
-        # with the identifier already printed on their record.
-        username = payload.student_number.lower()
+        duplicate_person = (
+            self.db.query(Student.id)
+            .filter(
+                func.lower(Student.first_name) == payload.first_name.casefold(),
+                func.lower(Student.last_name) == payload.last_name.casefold(),
+                Student.date_of_birth == payload.date_of_birth,
+            )
+            .first()
+        )
+        if duplicate_person:
+            return None, None, (
+                "A student with this exact name and date of birth already exists. "
+                "Verify the existing record before admitting them again."
+            )
+
+        credentials = StudentCredentialsService(self.db)
+        try:
+            student_number = credentials.allocate_student_number(year_id)
+        except ValueError as exc:
+            return None, None, str(exc)
+
+        username = student_number
         if self.db.query(User.id).filter(User.username == username).first():
-            username = None
+            return None, None, "The generated student number is already in use. Try again."
 
         password = generate_temporary_password()
 
         user = User(
-            email=email,
+            email=None,
             username=username,
             full_name=f"{payload.first_name} {payload.last_name}",
             password_hash=hash_password(password),
@@ -146,7 +230,8 @@ class StudentService:
             must_change_password=True,
         )
         user.student = Student(
-            student_number=payload.student_number,
+            student_number=student_number,
+            admission_year=credentials.admission_year(year_id),
             first_name=payload.first_name,
             last_name=payload.last_name,
             date_of_birth=payload.date_of_birth,
@@ -156,13 +241,26 @@ class StudentService:
         self.db.add(user)
         self.db.flush()
 
-        if payload.subject_ids:
-            year_id = self.academic.resolve_year_id(payload.academic_year_id)
-            if year_id:
-                self.set_subjects(user.student, payload.subject_ids, year_id)
+        self.db.add(
+            StudentEnrollment(
+                student_id=user.student.id,
+                academic_year_id=year_id,
+                class_id=payload.class_id,
+                class_name_snapshot=self.db.get(SchoolClass, payload.class_id).name,
+                form_level=self.db.get(SchoolClass, payload.class_id).form_level,
+                academic_level=self.db.get(SchoolClass, payload.class_id).level,
+                status=StudentEnrollmentStatus.ACTIVE,
+            )
+        )
 
-        self.db.commit()
-        self.db.refresh(user.student)
+        if payload.subject_ids:
+            self.set_subjects(user.student, payload.subject_ids, year_id)
+
+        if commit:
+            self.db.commit()
+            self.db.refresh(user.student)
+        else:
+            self.db.flush()
         return user.student, password, None
 
     # ------------------------------------------------------- updating
@@ -171,30 +269,6 @@ class StudentService:
         self, student: Student, payload: StudentUpdate
     ) -> Tuple[Optional[Student], Optional[str]]:
         data = payload.model_dump(exclude_unset=True)
-
-        number = data.pop("student_number", None)
-        if number and number != student.student_number:
-            clash = (
-                self.db.query(Student.id)
-                .filter(Student.student_number == number, Student.id != student.id)
-                .first()
-            )
-            if clash:
-                return None, f"Student number {number} is already in use."
-            student.student_number = number
-
-        email = data.pop("email", None)
-        if email:
-            email = str(email).strip().lower()
-            if email != student.user.email:
-                clash = (
-                    self.db.query(User.id)
-                    .filter(User.email == email, User.id != student.user_id)
-                    .first()
-                )
-                if clash:
-                    return None, f"An account already exists for {email}."
-                student.user.email = email
 
         class_id = data.get("class_id", "__unset__")
         if class_id != "__unset__" and class_id is not None:
@@ -290,7 +364,9 @@ class StudentService:
         )
         return {row.id: row.name for row in rows}
 
-    def valid_subject_ids(self, subject_ids: Sequence[int]) -> Tuple[bool, Optional[str]]:
+    def valid_subject_ids(
+        self, subject_ids: Sequence[int], level: Optional[EducationLevel] = None
+    ) -> Tuple[bool, Optional[str]]:
         """Reject a selection naming a subject that does not exist or is retired."""
         if not subject_ids:
             return True, None
@@ -303,6 +379,17 @@ class StudentService:
         missing = set(subject_ids) - found
         if missing:
             return False, "One or more selected subjects do not exist or are inactive."
+        if level is not None:
+            allowed = (
+                {SubjectLevel.O_LEVEL, SubjectLevel.BOTH}
+                if level == EducationLevel.O_LEVEL
+                else {SubjectLevel.A_LEVEL, SubjectLevel.BOTH}
+            )
+            incompatible = self.db.query(Subject.id).filter(
+                Subject.id.in_(list(subject_ids)), ~Subject.level.in_(allowed)
+            ).first()
+            if incompatible:
+                return False, f"One or more subjects are not offered at {level.value.replace('_', '-')}."
         return True, None
 
 
@@ -330,7 +417,6 @@ class TeacherService:
                     Teacher.employee_number.like(term.upper()),
                     Teacher.first_name.like(term),
                     Teacher.last_name.like(term),
-                    User.email.like(term),
                 )
             )
         if not include_inactive:
@@ -354,20 +440,22 @@ class TeacherService:
         """Create a teacher and their portal account.
 
         Returns (teacher, temporary_password, error). As with students, the
-        plaintext is for the email service only and never for a response body.
+        plaintext is returned once to an authorised administrator for a
+        short-lived printable credential slip and is never persisted.
         """
         number = payload.employee_number
         if self.db.query(Teacher.id).filter(Teacher.employee_number == number).first():
             return None, None, f"Employee number {number} is already in use."
 
-        email = str(payload.email).strip().lower()
-        if self.db.query(User.id).filter(User.email == email).first():
-            return None, None, f"An account already exists for {email}."
+        username = number.lower()
+        if self.db.query(User.id).filter(User.username == username).first():
+            return None, None, f"Employee number {number} is already in use as a sign-in name."
 
         password = generate_temporary_password()
 
         user = User(
-            email=email,
+            email=None,
+            username=username,
             full_name=f"{payload.first_name} {payload.last_name}",
             password_hash=hash_password(password),
             role=UserRole.TEACHER,
@@ -407,20 +495,15 @@ class TeacherService:
             )
             if clash:
                 return None, f"Employee number {number} is already in use."
+            username_clash = (
+                self.db.query(User.id)
+                .filter(User.username == number.lower(), User.id != teacher.user_id)
+                .first()
+            )
+            if username_clash:
+                return None, f"Employee number {number} is already in use as a sign-in name."
             teacher.employee_number = number
-
-        email = data.pop("email", None)
-        if email:
-            email = str(email).strip().lower()
-            if email != teacher.user.email:
-                clash = (
-                    self.db.query(User.id)
-                    .filter(User.email == email, User.id != teacher.user_id)
-                    .first()
-                )
-                if clash:
-                    return None, f"An account already exists for {email}."
-                teacher.user.email = email
+            teacher.user.username = number.lower()
 
         for field, value in data.items():
             setattr(teacher, field, value)

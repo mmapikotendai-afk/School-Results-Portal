@@ -424,7 +424,7 @@ class ResultImportService:
                 Result.examination_id == exam.id, Result.subject_id == subject.id
             )
         }
-        levels = self._levels_for(list(accepted))
+        levels = self._levels_for(list(accepted), exam.term.academic_year_id)
 
         try:
             for student_id, (marks, remarks) in accepted.items():
@@ -502,15 +502,16 @@ class ResultImportService:
             parts.append(f"{report.unchanged} unchanged")
         report.detail = f"Results saved for {subject.name}: {', '.join(parts)}."
 
-    def _levels_for(self, student_ids: List[int]) -> Dict[int, EducationLevel]:
+    def _levels_for(self, student_ids: List[int], academic_year_id: int) -> Dict[int, EducationLevel]:
         """Each student's level, which decides the grade band applied."""
         if not student_ids:
             return {}
         rows = self.db.query(Student).filter(Student.id.in_(student_ids)).all()
-        return {
-            s.id: (s.school_class.level if s.school_class else EducationLevel.O_LEVEL)
-            for s in rows
-        }
+        from app.services.enrollment_context import student_academic_level
+        return {s.id: student_academic_level(
+            self.db, s.id, academic_year_id,
+            s.school_class.level if s.school_class else EducationLevel.O_LEVEL,
+        ) for s in rows}
 
 
 def apply_single_mark(

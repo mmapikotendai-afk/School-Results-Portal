@@ -24,7 +24,8 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.models.academic_year import Term
 from app.models.enrollment import StudentSubject
-from app.models.enums import EnrollmentStatus
+from app.models.enums import EducationLevel, EnrollmentStatus, ExaminationStatus
+from app.models.published_report import PublishedReport
 from app.models.examination import Examination
 from app.models.result import Result
 from app.models.student import Student
@@ -104,9 +105,16 @@ class ResultsEngine:
         """Every mark in one examination, optionally narrowed to a class."""
         query = self._base().filter(Result.examination_id == examination_id)
         if class_id is not None:
-            query = query.join(Student, Result.student_id == Student.id).filter(
-                Student.class_id == class_id
-            )
+            exam = self.db.get(Examination, examination_id)
+            if exam and exam.status == ExaminationStatus.PUBLISHED:
+                query = query.join(PublishedReport,
+                    (PublishedReport.student_id == Result.student_id)
+                    & (PublishedReport.examination_id == Result.examination_id)
+                ).filter(PublishedReport.class_id == class_id)
+            else:
+                query = query.join(Student, Result.student_id == Student.id).filter(
+                    Student.class_id == class_id
+                )
         return query.all()
 
     def for_teacher(self, teacher_id: int, examination_id: int) -> List[Result]:
@@ -159,6 +167,17 @@ class ResultsEngine:
         """
         if exam.term is None:
             return []
+
+        if exam.status == ExaminationStatus.PUBLISHED:
+            query = self.db.query(Student).join(
+                PublishedReport, PublishedReport.student_id == Student.id
+            ).filter(
+                PublishedReport.examination_id == exam.id,
+                PublishedReport.rank_eligible.is_(True),
+            )
+            if class_id is not None:
+                query = query.filter(PublishedReport.class_id == class_id)
+            return query.all()
 
         query = (
             self.db.query(Student)
@@ -286,6 +305,17 @@ class ResultsEngine:
 
         system_remarks = _system_remarks(self.grading)
 
+        from app.services.publication_service import grading_bands
+
+        contexts = {row.student_id: row for row in self.db.query(PublishedReport).filter(
+            PublishedReport.examination_id == examination_id
+        )}
+        for row in contexts.values():
+            system_remarks.update(b["remark"] for b in row.context["grading_bands"])
+            context = dict(row.context)
+            context["grading_bands"] = grading_bands(self.db, EducationLevel(context["level"]))
+            row.context = context
+
         changed = 0
         for result in results:
             level = (
@@ -293,6 +323,8 @@ class ResultsEngine:
                 if result.student and result.student.school_class
                 else None
             )
+            if result.student_id in contexts:
+                level = EducationLevel(contexts[result.student_id].context["level"])
             grade, remark = self.grading.grade_for(result.marks, level)
 
             # Only replace a remark the system produced; a teacher's own
@@ -305,7 +337,7 @@ class ResultsEngine:
                     result.remarks = remark
                 changed += 1
 
-        if changed:
+        if changed or contexts:
             self.db.commit()
         return changed
 

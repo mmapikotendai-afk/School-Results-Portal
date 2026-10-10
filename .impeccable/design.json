@@ -1,0 +1,149 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-09T00:00:00+02:00",
+  "title": "Design System: Academic Register",
+  "extensions": {
+    "colorMeta": {
+      "crest-navy": {
+        "role": "primary",
+        "displayName": "Crest Navy",
+        "tonalRamp": ["#000b33", "#001152", "#001870", "#0f1f7e", "#3547a8", "#8a97d4", "#d6dbf0", "#eef0f9"]
+      },
+      "action-navy": {
+        "role": "primary",
+        "displayName": "Action Navy",
+        "tonalRamp": ["#000b33", "#001152", "#001870", "#1f3092", "#5c6cbf", "#b3bce3", "#d6dbf0", "#eef0f9"]
+      },
+      "crest-red": {
+        "role": "secondary",
+        "displayName": "Crest Red",
+        "tonalRamp": ["#5c0714", "#7a0b1e", "#a3000c", "#c4000e", "#e00010", "#ee5a63", "#fbd9db", "#fef0f1"]
+      },
+      "record-ink": {
+        "role": "neutral",
+        "displayName": "Record Ink",
+        "tonalRamp": ["#1c2b31", "#27353a", "#2e2e2e", "#454545", "#5a625e", "#bfbfba", "#dfe2dc", "#fbfbf9"]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Warm Paper",
+        "tonalRamp": ["#1c2b31", "#454545", "#626a65", "#bfbfba", "#dfe2dc", "#f0f1ec", "#f1f2ee", "#fbfbf9"]
+      },
+      "success": {
+        "role": "tertiary",
+        "displayName": "Published Green",
+        "tonalRamp": ["#052d19", "#08542e", "#0b6b3a", "#0e7d45", "#58a77a", "#9bceb0", "#cfe7d9", "#ebf5ef"]
+      },
+      "warning": {
+        "role": "tertiary",
+        "displayName": "Review Ochre",
+        "tonalRamp": ["#342200", "#6e4700", "#8a5a00", "#a66d00", "#c99c45", "#e0c786", "#f0e2bf", "#faf3e3"]
+      },
+      "danger": {
+        "role": "tertiary",
+        "displayName": "Overdue Garnet",
+        "tonalRamp": ["#36040c", "#5c0714", "#7a0b1e", "#9e1229", "#c45c6d", "#e69ba7", "#f5d6db", "#fbeef0"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Record Display", "purpose": "Page, person, and examination identity." },
+      "title": { "displayName": "Operational Title", "purpose": "Sections, subjects, and grouped tasks." },
+      "body": { "displayName": "Record Body", "purpose": "Forms, tables, guidance, and record content." },
+      "label": { "displayName": "Record Label", "purpose": "Fields, metadata, and table headings." }
+    },
+    "shadows": [
+      { "name": "active-navigation", "value": "0 1px 3px rgb(22 35 32 / 0.08)", "purpose": "Current rail destination only." },
+      { "name": "modal-overlay", "value": "0 24px 48px -12px rgb(0 0 0 / 0.28)", "purpose": "Top-layer dialogs only." }
+    ],
+    "motion": [
+      { "name": "ease-out-soft", "value": "cubic-bezier(0.22, 1, 0.36, 1)", "purpose": "Rail and drawer state transitions." },
+      { "name": "reduced-motion", "value": "0.01ms", "purpose": "Effective removal of authored movement when requested." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The principal action in an operational group.",
+      "html": "<button class=\"ds-btn-primary\">Save changes</button>",
+      "css": ".ds-btn-primary{min-height:40px;padding:10px 20px;border:0;border-radius:6px;background:#001152;color:#fff;font:600 14px 'Public Sans Variable',system-ui,sans-serif;transition:background-color 100ms}.ds-btn-primary:hover{background:#001870}.ds-btn-primary:focus-visible{outline:2px solid #0f1f7e;outline-offset:2px}.ds-btn-primary:disabled{opacity:.4;cursor:not-allowed}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "A parallel or supporting action.",
+      "html": "<button class=\"ds-btn-secondary\">View record</button>",
+      "css": ".ds-btn-secondary{min-height:40px;padding:10px 20px;border:1px solid #bfbfba;border-radius:6px;background:#fff;color:#1c2b31;font:600 14px 'Public Sans Variable',system-ui,sans-serif}.ds-btn-secondary:hover{background:#f1f2ee}.ds-btn-secondary:focus-visible{outline:2px solid #0f1f7e;outline-offset:2px}"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "A labelled record field with restrained structure.",
+      "html": "<label class=\"ds-field\"><span>Student number</span><input value=\"STU-0001\"></label>",
+      "css": ".ds-field{display:grid;gap:8px;color:#2e2e2e;font:500 12px 'Public Sans Variable',system-ui,sans-serif}.ds-field input{height:42px;padding:0 14px;border:1px solid #bfbfba;border-radius:6px;background:#fff;color:#1c2b31;font:400 14px 'Public Sans Variable',system-ui,sans-serif}.ds-field input:focus-visible{outline:2px solid #0f1f7e;outline-offset:2px;border-color:#001870}"
+    },
+    {
+      "name": "Status Chip",
+      "kind": "chip",
+      "description": "A compact state that remains understandable without color.",
+      "html": "<span class=\"ds-status\">Published</span>",
+      "css": ".ds-status{display:inline-flex;align-items:center;padding:4px 8px;border-radius:3px;background:#ebf5ef;color:#08542e;font:600 11px/1.2 'Public Sans Variable',system-ui,sans-serif}"
+    },
+    {
+      "name": "Record Surface",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "A flat grouped record separated by one quiet rule.",
+      "html": "<section class=\"ds-record\"><h3>End of Term Examination</h3><p>Term 2 · 2026</p></section>",
+      "css": ".ds-record{padding:20px;border:1px solid #dfe2dc;border-radius:8px;background:#fff;color:#1c2b31}.ds-record h3{margin:0;font:500 24px/1.2 Newsreader,Georgia,serif}.ds-record p{margin:8px 0 0;color:#5a625e;font:400 14px/1.6 'Public Sans Variable',system-ui,sans-serif}"
+    },
+    {
+      "name": "Active Navigation Item",
+      "kind": "nav",
+      "description": "The current destination in the light academic rail.",
+      "html": "<a class=\"ds-nav-active\" href=\"#\"><span aria-hidden=\"true\">●</span><span>Academic record</span><i aria-hidden=\"true\"></i></a>",
+      "css": ".ds-nav-active{display:flex;align-items:center;gap:12px;min-height:36px;padding:8px 12px;border-radius:6px;background:#fff;color:#001152;box-shadow:0 1px 3px rgb(22 35 32/.08);text-decoration:none;font:600 13px 'Public Sans Variable',system-ui,sans-serif}.ds-nav-active>span:first-child{color:#001870;font-size:10px}.ds-nav-active i{width:4px;height:4px;margin-left:auto;border-radius:50%;background:#a3000c}.ds-nav-active:focus-visible{outline:2px solid #0f1f7e;outline-offset:2px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Living Academic Register",
+    "overview": "The portal takes the order and credibility of a formal school register and turns it into a calm digital workspace. The crest, measured rules, serif record headings, and tabular figures provide institutional character. Open white surfaces, a warm neutral rail, and compact controls keep the application contemporary and efficient. The system is information dense without feeling compressed. Administration leads with the current term, work requiring attention, and publication readiness. Teaching screens lead with assigned subjects and unfinished marks. Student screens read as personal academic records, with identity and published results carrying more editorial weight.",
+    "keyCharacteristics": [
+      "Warm, quiet grounds with high-contrast ink.",
+      "Crest navy for action and structure; crest red used sparingly as an institutional mark.",
+      "Newsreader for record identity and page headings; Public Sans for operational content.",
+      "Fine rules, modest corners, and flat surfaces at rest.",
+      "Compact real data in place of decorative dashboard statistics."
+    ],
+    "rules": [
+      { "name": "The Crest Red Rule", "body": "Use red as a rare school identity signal; reserve garnet danger colors for errors and overdue work.", "section": "colors" },
+      { "name": "The Record Is the Color Rule", "body": "Status color clarifies actual data; it does not decorate empty containers.", "section": "colors" },
+      { "name": "The Two-Voice Rule", "body": "Newsreader names the record; Public Sans operates it.", "section": "typography" },
+      { "name": "The Numeral Rule", "body": "Counts, dates, marks, and percentages use tabular numerals wherever columns must align.", "section": "typography" },
+      { "name": "The Flat Register Rule", "body": "Borders and ground shifts establish hierarchy; shadows are reserved for state and top-layer dialogs.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do lead each role with its current task and authorised data.",
+      "Do keep filters beside the table or register they affect.",
+      "Do pair every status color with direct text.",
+      "Do let student names and examination titles wrap without truncating the record itself.",
+      "Do use the supplied crest and configured school identity."
+    ],
+    "donts": [
+      "Don't create oversized, repeated KPI cards or decorative charts.",
+      "Don't add gradients, glass effects, giant corners, or floating translucent panels.",
+      "Don't use the crest red for routine errors or every primary action.",
+      "Don't invent enrolment states, performance data, activity, or school claims.",
+      "Don't hide record fields on mobile merely to make a table fit."
+    ]
+  }
+}

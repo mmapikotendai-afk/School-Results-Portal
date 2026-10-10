@@ -63,7 +63,7 @@ export function LoginPage() {
 
   function validate() {
     const errors = {}
-    if (!form.identifier.trim()) errors.identifier = 'Enter your username or email address.'
+    if (!form.identifier.trim()) errors.identifier = 'Enter your student number, username or email.'
     if (!form.password) errors.password = 'Enter your password.'
     setFieldErrors(errors)
     return Object.keys(errors).length === 0
@@ -81,7 +81,9 @@ export function LoginPage() {
       // Always the account's own home, never the page a link pointed at.
       // Portal URLs get forwarded, and sign-in should not deliver whoever
       // uses a forwarded link to the exact screen it was copied from.
-      navigate(homePathForRole(user.role), { replace: true })
+      navigate(user.must_change_password ? '/change-password' : homePathForRole(user.role), {
+        replace: true,
+      })
     } catch (err) {
       setError({
         code: getErrorCode(err),
@@ -97,8 +99,7 @@ export function LoginPage() {
   return (
     <div>
       <div className="mb-8">
-        <p className="rule-label mb-3">Results Portal</p>
-        <h1 className="text-[32px] leading-none font-bold tracking-tight">Sign in</h1>
+        <h1 className="font-serif text-[40px] leading-tight font-medium tracking-tight">Sign in</h1>
         <p className="text-ink-500 mt-3 text-sm">
           Use the credentials issued to you by the school office.
         </p>
@@ -122,14 +123,14 @@ export function LoginPage() {
 
       <form onSubmit={handleSubmit} noValidate className="space-y-5">
         <Input
-          label="Username or email"
+          label="Student number, username or email"
           name="identifier"
           type="text"
-          icon="envelope"
+          icon="user-graduate"
           autoComplete="username"
           autoCapitalize="none"
           spellCheck="false"
-          placeholder="you@school.edu"
+          placeholder="PHS26001"
           value={form.identifier}
           onChange={handleChange}
           error={fieldErrors.identifier}
@@ -152,9 +153,10 @@ export function LoginPage() {
             disabled={submitting}
             required
           />
-          {/* There is no self-service reset: this asks the office to issue a
-              new password, which is how every credential here is handed out. */}
-          <div className="mt-2 flex justify-end">
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm text-ink-500">
+              Contact the school administration if you cannot log in.
+            </p>
             <Link
               to="/forgot-password"
               className="text-ink-500 hover:text-brand-800 text-sm font-medium underline underline-offset-2"
@@ -172,7 +174,7 @@ export function LoginPage() {
           icon="arrow-right"
           iconPosition="right"
         >
-          {submitting ? 'Signing in' : 'Sign In'}
+          {submitting ? 'Signing in' : 'Sign in'}
         </Button>
       </form>
 

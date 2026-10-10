@@ -4,15 +4,17 @@ import secrets
 from datetime import datetime, timezone
 from typing import Optional, Tuple
 
-from sqlalchemy import delete, or_
+from sqlalchemy import delete, func, or_
 from sqlalchemy.orm import Session
 
 from app.auth.jwt import create_access_token
 from app.config import settings
 from app.models.revoked_token import RevokedToken
 from app.models.user import User
+from app.models.enums import UserRole
 from app.schemas.user import UserProfile
 from app.utils.security import hash_password, verify_password
+from app.services.student_access_service import has_active_current_enrollment
 
 
 class AuthService:
@@ -30,7 +32,12 @@ class AuthService:
             return None
         return (
             self.db.query(User)
-            .filter(or_(User.email == normalised, User.username == normalised))
+            .filter(
+                or_(
+                    func.lower(User.email) == normalised,
+                    func.lower(User.username) == normalised,
+                )
+            )
             .first()
         )
 
@@ -56,6 +63,9 @@ class AuthService:
             return None, "invalid_credentials"
 
         if not user.is_active:
+            return None, "account_inactive"
+
+        if user.role == UserRole.STUDENT and not has_active_current_enrollment(self.db, user):
             return None, "account_inactive"
 
         return user, None

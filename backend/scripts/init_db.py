@@ -24,6 +24,13 @@ def main() -> int:
     init_db()
     print("Tables are up to date.")
 
+    from app.services.publication_service import backfill_reports
+
+    with SessionLocal() as db:
+        count = backfill_reports(db)
+        db.commit()
+    print(f"Captured {count} missing published report contexts from available records.")
+
     email = os.getenv("ADMIN_EMAIL")
     password = os.getenv("ADMIN_PASSWORD")
     full_name = os.getenv("ADMIN_NAME", "System Administrator")

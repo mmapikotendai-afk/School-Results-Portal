@@ -535,13 +535,23 @@ def edit_result(
     if result is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Result not found.")
 
-    level = (
+    fallback_level = (
         result.student.school_class.level
         if result.student and result.student.school_class
         else EducationLevel.O_LEVEL
     )
+    from app.services.enrollment_context import student_academic_level
+    level = student_academic_level(
+        db, result.student_id, result.examination.term.academic_year_id, fallback_level
+    )
     grading = GradingService(db)
-    grade, default_remark = grading.grade_for(payload.marks, level)
+    from app.services.publication_service import published_context, grade_from_context
+
+    saved = published_context(db, result.examination, result.student_id)
+    if saved:
+        grade, default_remark = grade_from_context(payload.marks, saved.context)
+    else:
+        grade, default_remark = grading.grade_for(payload.marks, level)
 
     if result.marks != payload.marks or result.grade != grade:
         db.add(

@@ -3,7 +3,7 @@
 from datetime import date
 from typing import List, Optional
 
-from sqlalchemy import Date, Enum, ForeignKey, Index, String
+from sqlalchemy import Date, Enum, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -31,6 +31,7 @@ class Student(Base, TimestampMixin):
     student_number: Mapped[str] = mapped_column(
         String(32), unique=True, index=True, nullable=False
     )
+    admission_year: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
 
     first_name: Mapped[str] = mapped_column(String(80), nullable=False)
     last_name: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
@@ -48,6 +49,9 @@ class Student(Base, TimestampMixin):
         back_populates="students"
     )
     subject_enrollments: Mapped[List["StudentSubject"]] = relationship(  # noqa: F821
+        back_populates="student", cascade="all, delete-orphan"
+    )
+    year_enrollments: Mapped[List["StudentEnrollment"]] = relationship(  # noqa: F821
         back_populates="student", cascade="all, delete-orphan"
     )
     results: Mapped[List["Result"]] = relationship(  # noqa: F821

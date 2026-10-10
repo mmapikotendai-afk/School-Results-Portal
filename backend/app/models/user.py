@@ -25,7 +25,7 @@ class User(Base, TimestampMixin):
     # Sign-in identifiers. Email is required; username is an optional shorter
     # alias, so staff can sign in with either. Both are matched case-insensitively
     # by the service layer, which stores them lowercased.
-    email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    email: Mapped[Optional[str]] = mapped_column(String(255), unique=True, index=True, nullable=True)
     username: Mapped[Optional[str]] = mapped_column(String(64), unique=True, index=True)
 
     # bcrypt hash only. The plaintext is discarded the moment it is hashed.
@@ -84,7 +84,7 @@ class User(Base, TimestampMixin):
     @property
     def display_identifier(self) -> str:
         """What the user typed to sign in, preferring the shorter alias."""
-        return self.username or self.email
+        return self.username or self.email or ""
 
     def __repr__(self) -> str:
-        return f"<User {self.email} ({self.role.value})>"
+        return f"<User {self.display_identifier} ({self.role.value})>"
