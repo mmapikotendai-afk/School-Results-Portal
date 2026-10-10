@@ -14,11 +14,13 @@ services:
     branch: main
     rootDir: backend
 
-    # init_db creates any missing tables and, on an empty database, the first
-    # administrator. It is idempotent - create_all never alters a table that
-    # already exists - so running it on every deploy is safe, and a failure
-    # here fails the build rather than leaving a half-migrated service live.
-    buildCommand: pip install -r requirements.txt && python -m scripts.init_db
+    # init_db creates missing tables. The progression migration then upgrades
+    # databases created before permanent student numbers and annual enrollment
+    # history were introduced (including students.admission_year). Both steps
+    # are idempotent and preserve existing users, students and results.
+    buildCommand: >-
+      pip install -r requirements.txt && python -m scripts.init_db &&
+      python -m scripts.migrate_permanent_numbers_progression
 
     # --proxy-headers so the application sees the real client address through
     # Render's router rather than the router's own, which the rate limiter
