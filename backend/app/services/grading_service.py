@@ -23,20 +23,19 @@ from app.models.grade_band import GradeBand
 DEFAULT_BANDS: Dict[EducationLevel, List[Tuple[int, str, str, bool]]] = {
     EducationLevel.O_LEVEL: [
         (75, "A", "Excellent", True),
-        (70, "B", "Very good", True),
-        (60, "C", "Good", True),
-        (50, "D", "Satisfactory", True),
-        (40, "E", "Needs improvement", True),
-        (0, "U", "Ungraded", False),
+        (65, "B", "Very Good", True),
+        (50, "C", "Good", True),
+        (40, "D", "Satisfactory", True),
+        (30, "E", "Pass", True),
+        (0, "U", "Fail", False),
     ],
     EducationLevel.A_LEVEL: [
-        (80, "A", "Excellent", True),
-        (70, "B", "Very good", True),
-        (60, "C", "Good", True),
-        (50, "D", "Satisfactory", True),
-        (40, "E", "Marginal pass", True),
-        (35, "O", "Subsidiary pass", False),
-        (0, "F", "Fail", False),
+        (75, "A", "Excellent", True),
+        (65, "B", "Very Good", True),
+        (50, "C", "Good", True),
+        (40, "D", "Satisfactory", True),
+        (30, "E", "Pass", True),
+        (0, "U", "Fail", False),
     ],
 }
 

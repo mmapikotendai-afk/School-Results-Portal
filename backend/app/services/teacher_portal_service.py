@@ -350,6 +350,8 @@ class TeacherPortalService:
                     student_id=student.id,
                     student_number=student.student_number,
                     student_name=student.full_name,
+                    class_name=student.school_class.name if student.school_class else None,
+                    form_level=(student.school_class.form_level.value if student.school_class else None),
                     marks=result.marks if result else None,
                     grade=result.grade if result else None,
                     remarks=result.remarks if result else None,

@@ -99,8 +99,13 @@ def capture_reports(db: Session, exam: Examination) -> int:
             context={
                 "student_number": student.student_number,
                 "student_name": student.full_name,
+                "date_of_birth": student.date_of_birth.isoformat() if student.date_of_birth else None,
+                "gender": student.gender.value if student.gender else None,
                 "class_name": enrollment.class_name_snapshot if enrollment else (
                     student.school_class.name if student.school_class else None
+                ),
+                "form_level": enrollment.form_level.value if enrollment else (
+                    student.school_class.form_level.value if student.school_class else None
                 ),
                 "level": level.value,
                 "examination_name": exam.name,

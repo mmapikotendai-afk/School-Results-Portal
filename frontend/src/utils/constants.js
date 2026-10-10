@@ -62,7 +62,7 @@ export const STATUS_LABELS = {
   UNDER_REVIEW: 'Under review',
   PUBLISHED: 'Published',
   PENDING: 'Not started',
-  PARTIAL: 'In progress',
+  PARTIAL: 'Draft',
   OVERDUE: 'Overdue',
   SUBMITTED: 'Submitted',
   LATE: 'Submitted late',

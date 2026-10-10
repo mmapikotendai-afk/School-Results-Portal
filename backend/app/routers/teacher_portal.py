@@ -25,6 +25,7 @@ from app.schemas.teacher_view import (
     ClassOption,
     MarkSheet,
     MarkSheetSave,
+    SubmissionReview,
     MarkUpdate,
     TeacherDashboard,
     TemplateOption,
@@ -209,6 +210,53 @@ def save_mark_sheet(
         SubmissionService(db).recalculate(exam, commit=False)
         db.commit()
 
+    return service.mark_sheet(teacher, examination_id, subject_id)
+
+
+@router.get(
+    "/examinations/{examination_id}/subjects/{subject_id}/review",
+    response_model=SubmissionReview,
+    summary="Review a mark sheet before final submission",
+)
+def review_mark_sheet(
+    examination_id: int, subject_id: int,
+    user: User = Depends(require_teacher), db: Session = Depends(get_db),
+) -> SubmissionReview:
+    service, _exam, _subject, _assignment = _authorise(db, user, examination_id, subject_id)
+    sheet = service.mark_sheet(_teacher(user), examination_id, subject_id)
+    entered = sum(row.marks is not None for row in sheet.rows)
+    missing = sheet.expected_count - entered
+    return SubmissionReview(
+        examination_id=examination_id, subject_id=subject_id,
+        expected_students=sheet.expected_count, marks_entered=entered,
+        missing_marks=missing, can_submit=missing == 0,
+        detail=("All required marks are ready for submission." if missing == 0
+                else f"{missing} student{'s' if missing != 1 else ''} still need marks."),
+    )
+
+
+@router.post(
+    "/examinations/{examination_id}/subjects/{subject_id}/submit",
+    response_model=MarkSheet,
+    summary="Confirm a complete mark sheet",
+)
+def submit_mark_sheet(
+    examination_id: int, subject_id: int,
+    user: User = Depends(require_teacher), db: Session = Depends(get_db),
+) -> MarkSheet:
+    service, exam, _subject, _assignment = _authorise(db, user, examination_id, subject_id)
+    _require_writable(service, exam)
+    teacher = _teacher(user)
+    sheet = service.mark_sheet(teacher, examination_id, subject_id)
+    entered = sum(row.marks is not None for row in sheet.rows)
+    if entered != sheet.expected_count:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot submit: {sheet.expected_count - entered} required marks are still missing.",
+        )
+    service.stamp_submission(exam, teacher, subject_id, user.id)
+    SubmissionService(db).recalculate(exam, commit=False)
+    db.commit()
     return service.mark_sheet(teacher, examination_id, subject_id)
 
 

@@ -1,348 +1,306 @@
-"""Rendering a report card as a print-ready A4 document.
+"""Print-ready A4 report cards built only from recorded school data."""
 
-One renderer serves every role. What a report contains is decided upstream by
-ReportCardService; this module only decides how it looks on the page.
-
-Layout is built around A4 at 210x297mm with 14mm side margins, giving a 182mm
-printable width that every column measurement below adds up to.
-"""
-
-from datetime import datetime
-from typing import List, Optional
+from datetime import date
+from decimal import Decimal
+from typing import Optional
 
 from fpdf import FPDF
 
 from app.services.report_card_service import ReportCard, ReportLine
-
 from app.utils.pdf import draw_logo
 
-# Page geometry, in millimetres.
 PAGE_W, PAGE_H = 210, 297
-MARGIN = 14
-CONTENT_W = PAGE_W - (2 * MARGIN)
+MARGIN = 9
+CONTENT_W = PAGE_W - 2 * MARGIN
 
-# Core PDF fonts are Latin-1 only. Rather than ship a Unicode font file, text
-# is folded to the nearest ASCII so a stray curly quote cannot break a report.
-_REPLACEMENTS = {
-    "‘": "'", "’": "'", "“": '"', "”": '"',
-    "–": "-", "—": "-", "·": "-", "…": "...",
-}
-
+NAVY = (24, 70, 108)
+NAVY_DARK = (16, 49, 77)
+PALE_BLUE = (224, 235, 245)
+PALEST_BLUE = (243, 248, 252)
 INK = (17, 24, 39)
-MUTED = (110, 118, 132)
-RULE = (200, 207, 218)
-HEAD_FILL = (238, 242, 248)
-STRIPE = (248, 250, 252)
+MUTED = (77, 91, 108)
+RULE = (129, 154, 178)
+
+_REPLACEMENTS = {"â€˜": "'", "â€™": "'", "â€œ": '"', "â€": '"', "â€“": "-", "â€”": "-", "Â·": "-", "â€¦": "..."}
 
 
-def _ascii(text: Optional[str]) -> str:
-    if not text:
+def _text(value: object) -> str:
+    """Core PDF fonts are Latin-1; keep one unexpected character harmless."""
+    if value is None:
         return ""
+    text = str(value)
     for bad, good in _REPLACEMENTS.items():
         text = text.replace(bad, good)
     return text.encode("latin-1", "replace").decode("latin-1")
 
 
-class ReportCardPDF(FPDF):
-    """An A4 report card on the school's letterhead."""
+def _pretty_enum(value: Optional[str]) -> str:
+    return _text(value or "-").replace("_", " ").title()
 
-    # (heading, width mm, alignment) - widths total CONTENT_W.
-    COLUMNS = [
-        ("Subject", 74, "L"),
-        ("Code", 24, "C"),
-        ("Marks", 22, "C"),
-        ("Grade", 22, "C"),
-        ("Remarks", 40, "L"),
-    ]
+
+def _date(value: Optional[date]) -> str:
+    return value.strftime("%d %B %Y").upper() if value else "-"
+
+
+class ReportCardPDF(FPDF):
+    """Traditional blue-and-white A4 report card for paper or download."""
+
+    COLUMNS = (("SUBJECT", 73, "L"), ("MARK (%)", 28, "C"), ("GRADE", 31, "C"), ("REMARKS", 60, "L"))
 
     def __init__(self, card: ReportCard, logo_path: Optional[str] = None):
         super().__init__(orientation="P", unit="mm", format="A4")
         self.card = card
         self.logo_path = logo_path
         self.set_margins(MARGIN, MARGIN, MARGIN)
-        self.set_auto_page_break(auto=True, margin=24)
+        self.set_auto_page_break(auto=True, margin=18)
         self.set_title(f"{card.student_name} - {card.examination_name}")
-
-    # ---------------------------------------------------------- watermark
+        self.set_author(_text(card.school.school_name))
 
     def _watermark(self) -> None:
-        """A faint mark behind the content.
-
-        Drawn first so everything else sits on top of it, and kept very light:
-        a watermark that competes with the marks defeats the document.
-        """
         mode = (self.card.school.report_watermark or "name").lower()
         if mode == "none":
             return
-
         if mode == "logo" and self.logo_path:
-            size = 120
-            with self.local_context(fill_opacity=0.06, stroke_opacity=0.06):
-                drawn = draw_logo(
-                    self,
-                    self.logo_path,
-                    x=(PAGE_W - size) / 2,
-                    y=(PAGE_H - size) / 2,
-                    w=size,
-                )
-            if drawn:
-                return
-            # An unusable crest falls through to the text watermark below, so
-            # the page still carries one.
-
-        text = _ascii(self.card.school.school_name).upper()
-        if not text:
+            with self.local_context(fill_opacity=0.055, stroke_opacity=0.055):
+                if draw_logo(self, self.logo_path, x=45, y=92, w=120):
+                    return
+        name = _text(self.card.school.school_name).upper()
+        if not name:
             return
-
-        self.set_font("Helvetica", "B", 46)
-        with self.local_context(fill_opacity=0.05, stroke_opacity=0.05):
-            self.set_text_color(90, 100, 120)
-            with self.rotation(38, x=PAGE_W / 2, y=PAGE_H / 2):
-                width = self.get_string_width(text)
-                self.set_xy((PAGE_W - width) / 2, PAGE_H / 2 - 10)
-                self.cell(width, 20, text, align="C")
+        self.set_font("Times", "B", 39)
+        self.set_text_color(150, 160, 171)
+        with self.local_context(fill_opacity=0.055, stroke_opacity=0.055):
+            width = self.get_string_width(name)
+            self.text((PAGE_W - width) / 2, 190, name)
         self.set_text_color(*INK)
 
-    # ------------------------------------------------------------- header
+    def _section_bar(self, title: str, height: float = 7.5) -> None:
+        y = self.get_y()
+        self.set_fill_color(*NAVY)
+        self.set_draw_color(*NAVY_DARK)
+        self.rect(MARGIN, y, CONTENT_W, height, style="DF")
+        self.set_xy(MARGIN + 3, y + 1)
+        self.set_font("Times", "B", 10.5)
+        self.set_text_color(255, 255, 255)
+        self.cell(CONTENT_W - 6, height - 2, _text(title).upper())
+        self.set_text_color(*INK)
+        self.set_y(y + height)
 
     def header(self) -> None:
         self._watermark()
-
-        top = MARGIN
-        draw_logo(self, self.logo_path, x=MARGIN, y=top, h=20)
-
-        # The masthead is centred on the page, not on the space beside the
-        # crest, so it stays put whether or not a logo is present.
-        self.set_xy(MARGIN, top)
-        self.set_font("Helvetica", "B", 17)
+        self.set_draw_color(*NAVY)
+        self.set_line_width(0.55)
+        self.rect(3, 3, PAGE_W - 6, PAGE_H - 6)
+        self.set_line_width(0.18)
+        self.rect(4.5, 4.5, PAGE_W - 9, PAGE_H - 9)
+        top = 10
+        draw_logo(self, self.logo_path, x=MARGIN + 2, y=top, h=24)
+        self.set_xy(MARGIN + 30, top + 1)
+        self.set_font("Times", "B", 22)
         self.set_text_color(*INK)
-        self.cell(CONTENT_W, 8, _ascii(self.card.school.school_name),
-                  align="C", new_x="LMARGIN", new_y="NEXT")
-
+        self.cell(120, 9, _text(self.card.school.school_name).upper(), align="C")
         if self.card.school.motto:
-            self.set_font("Helvetica", "I", 8.5)
-            self.set_text_color(*MUTED)
-            self.cell(CONTENT_W, 4.5, _ascii(self.card.school.motto),
-                      align="C", new_x="LMARGIN", new_y="NEXT")
-
-        contact = " | ".join(
-            filter(None, [_ascii(self.card.school.address), _ascii(self.card.school.phone)])
-        )
-        if contact:
-            self.set_font("Helvetica", "", 8)
-            self.set_text_color(*MUTED)
-            self.cell(CONTENT_W, 4, contact, align="C", new_x="LMARGIN", new_y="NEXT")
-
-        self.ln(2)
-
-        # Results title: the term is the headline a reader looks for.
-        title = f"{_ascii(self.card.term_name or '')} RESULTS".strip().upper()
-        self.set_font("Helvetica", "B", 12)
-        self.set_text_color(*INK)
-        self.cell(CONTENT_W, 7, title, align="C", new_x="LMARGIN", new_y="NEXT")
-
-        self.set_font("Helvetica", "", 9)
-        self.set_text_color(*MUTED)
-        subtitle = f"Academic Year: {_ascii(self.card.academic_year_name or '-')}"
-        self.cell(CONTENT_W, 5, subtitle, align="C", new_x="LMARGIN", new_y="NEXT")
-        self.set_font("Helvetica", "", 8.5)
-        self.cell(CONTENT_W, 4.5, _ascii(self.card.examination_name),
-                  align="C", new_x="LMARGIN", new_y="NEXT")
-
-        self.ln(1.5)
-        self.set_draw_color(*RULE)
-        self.set_line_width(0.4)
-        self.line(MARGIN, self.get_y(), PAGE_W - MARGIN, self.get_y())
-        self.ln(4)
-
+            self.set_xy(MARGIN + 30, top + 11)
+            self.set_font("Times", "", 9.5)
+            self.cell(120, 5, _text(self.card.school.motto).upper(), align="C")
+        contact = [part for part in (self.card.school.address, self.card.school.phone) if part]
+        self.set_xy(PAGE_W - MARGIN - 38, top + 1)
+        self.set_font("Times", "", 7.7)
+        self.multi_cell(38, 4.2, "\n".join(_text(part) for part in contact), align="R")
+        self.set_draw_color(*NAVY)
+        self.set_line_width(0.7)
+        self.line(MARGIN, 36, PAGE_W - MARGIN, 36)
+        self.set_fill_color(*PALE_BLUE)
+        self.set_draw_color(*PALE_BLUE)
+        self.rect(49, 39, 112, 9, style="F")
+        self.set_xy(MARGIN, 40.1)
+        self.set_font("Times", "B", 15)
+        self.cell(CONTENT_W, 6.3, "STUDENT REPORT CARD", align="C")
+        year = _text(self.card.academic_year_name or "-")
+        term = _text(self.card.term_name or self.card.examination_name or "-")
+        self.set_xy(MARGIN, 50.2)
+        self.set_font("Times", "B", 10)
+        self.cell(CONTENT_W, 5.5, f"ACADEMIC YEAR: {year}    |    TERM: {term}", align="C")
+        self.set_y(59)
         if not self.card.is_published:
-            self._draft_banner()
-
-    def _draft_banner(self) -> None:
-        """An unpublished report is a working document, and says so.
-
-        Administrators review report cards before release; without this an
-        unreleased copy is indistinguishable from a final one on paper.
-        """
-        self.set_fill_color(254, 243, 199)
-        self.set_draw_color(217, 160, 30)
-        self.set_text_color(146, 100, 10)
-        self.set_font("Helvetica", "B", 8.5)
-        self.cell(CONTENT_W, 6,
-                  "PROVISIONAL - these results have not been published",
-                  border=1, align="C", fill=True, new_x="LMARGIN", new_y="NEXT")
-        self.set_text_color(*INK)
-        self.ln(3)
-
-    # --------------------------------------------------- student details
+            self.set_fill_color(254, 243, 199)
+            self.set_draw_color(217, 160, 30)
+            self.set_text_color(120, 82, 8)
+            self.set_font("Times", "B", 8.5)
+            self.cell(CONTENT_W, 5.8, "PROVISIONAL - RESULTS HAVE NOT BEEN PUBLISHED", border=1, align="C", fill=True, new_x="LMARGIN", new_y="NEXT")
+            self.set_text_color(*INK)
+            self.ln(2)
 
     def student_block(self) -> None:
-        """Who the report is for, boxed so it reads as identity, not content."""
-        rows = [
-            ("Student ID", self.card.student_number),
-            ("Student Name", self.card.student_name),
-            ("Class", self.card.class_name or "-"),
-        ]
-
-        self.set_draw_color(*RULE)
-        self.set_line_width(0.2)
-        start_y = self.get_y()
-        self.rect(MARGIN, start_y, CONTENT_W, len(rows) * 6.5 + 3)
-
-        self.set_y(start_y + 1.5)
-        for label, value in rows:
-            self.set_x(MARGIN + 3)
-            self.set_font("Helvetica", "", 9)
-            self.set_text_color(*MUTED)
-            self.cell(32, 6.5, f"{label}:")
-            self.set_font("Helvetica", "B", 10)
-            self.set_text_color(*INK)
-            self.cell(0, 6.5, _ascii(value), new_x="LMARGIN", new_y="NEXT")
-
-        self.set_y(start_y + len(rows) * 6.5 + 3)
-        self.ln(5)
-
-    # -------------------------------------------------------- result table
+        y, h = self.get_y(), 28
+        self.set_fill_color(*PALEST_BLUE)
+        self.set_draw_color(*NAVY)
+        self.set_line_width(0.25)
+        self.rect(MARGIN, y, CONTENT_W, h, style="DF")
+        left = (("STUDENT NAME", self.card.student_name), ("STUDENT NUMBER", self.card.student_number), ("FORM / CLASS", self.card.class_name or "-"), ("ACADEMIC LEVEL", _pretty_enum(self.card.academic_level)))
+        right = (("DATE OF BIRTH", _date(self.card.date_of_birth)), ("GENDER", _pretty_enum(self.card.gender)), ("FORM", _pretty_enum(self.card.form_level)), ("EXAMINATION", self.card.examination_name or "-"))
+        for index, ((left_label, left_value), (right_label, right_value)) in enumerate(zip(left, right)):
+            row_y = y + 3 + index * 6
+            self.set_xy(MARGIN + 4, row_y)
+            self.set_font("Times", "B", 8.5)
+            self.cell(35, 4, _text(left_label))
+            self.set_font("Times", "", 9.2)
+            self.cell(52, 4, _text(left_value)[:42])
+            self.set_xy(MARGIN + 104, row_y)
+            self.set_font("Times", "B", 8.5)
+            self.cell(30, 4, _text(right_label))
+            self.set_font("Times", "", 9.2)
+            self.cell(48, 4, _text(right_value)[:34])
+        self.set_y(y + h + 4)
 
     def _table_head(self) -> None:
-        self.set_font("Helvetica", "B", 9)
-        self.set_fill_color(*HEAD_FILL)
+        self._section_bar("Subject results")
+        self.set_fill_color(*PALE_BLUE)
         self.set_draw_color(*RULE)
-        self.set_text_color(*INK)
-        self.set_line_width(0.2)
-        for label, width, align in self.COLUMNS:
-            self.cell(width, 7.5, label, border=1, align=align, fill=True)
+        self.set_font("Times", "B", 9)
+        for title, width, align in self.COLUMNS:
+            self.cell(width, 7, title, border=1, align=align, fill=True)
         self.ln()
 
     def results_table(self) -> None:
         self._table_head()
-
-        self.set_font("Helvetica", "", 9)
         stripe = False
         for line in self.card.lines:
             if self.will_page_break(7):
                 self.add_page()
                 self._table_head()
-                self.set_font("Helvetica", "", 9)
-
-            self.set_fill_color(*STRIPE)
-            self._result_row(line, fill=stripe)
+            self._result_row(line, stripe)
             stripe = not stripe
-
+        if not self.card.lines:
+            self.set_font("Times", "I", 9)
+            self.set_text_color(*MUTED)
+            self.cell(CONTENT_W, 7, "No subject results have been recorded for this examination.", border=1, align="C")
+            self.ln()
+            self.set_text_color(*INK)
+        self._totals_row()
         self.ln(4)
 
-    def _result_row(self, line: ReportLine, fill: bool) -> None:
-        """One subject. A blank row is left genuinely blank - no mark is
-        invented for a subject that has none."""
+    def _result_row(self, line: ReportLine, stripe: bool) -> None:
         blank = line.is_blank or line.marks is None
-
-        values = [
-            (_ascii(line.subject_name)[:40], 74, "L"),
-            (_ascii(line.subject_code), 24, "C"),
-            ("" if blank else f"{line.marks:.0f}", 22, "C"),
-            ("" if blank else (line.grade or ""), 22, "C"),
-            ("" if blank else _ascii(line.remarks)[:24], 40, "L"),
-        ]
-
-        for index, (text, width, align) in enumerate(values):
-            if blank and index > 0:
-                self.set_text_color(*MUTED)
-            self.cell(width, 7, text, border=1, align=align, fill=fill)
-            self.set_text_color(*INK)
+        if stripe:
+            self.set_fill_color(*PALEST_BLUE)
+        values = ((line.subject_name, 73, "L"), ("" if blank else f"{line.marks:.0f}", 28, "C"), ("" if blank else line.grade or "", 31, "C"), ("" if blank else line.remarks or "", 60, "L"))
+        self.set_font("Times", "", 9.2)
+        self.set_draw_color(*RULE)
+        for value, width, align in values:
+            self.cell(width, 7, _text(value)[:44], border=1, align=align, fill=stripe)
         self.ln()
 
-    # ------------------------------------------------------------ summary
+    def _totals_row(self) -> None:
+        possible = self.card.subjects_counted * 100
+        avg = f"{self.card.average:.1f}%" if self.card.average is not None else "-"
+        overall = (self.card.overall or "-").split(" - ", 1)[0]
+        cells = (("TOTAL MARKS", 35), (f"{self.card.total_marks:.0f} / {possible}" if possible else "-", 29), ("AVERAGE", 31), (avg, 31), ("OVERALL GRADE", 43), (overall, 23))
+        self.set_font("Times", "B", 8.8)
+        self.set_fill_color(*PALE_BLUE)
+        self.set_draw_color(*NAVY)
+        for value, width in cells:
+            self.cell(width, 8.5, _text(value), border=1, align="C", fill=True)
+        self.ln()
 
     def summary(self) -> None:
-        """Average, overall performance, and position where configured."""
-        rows: List[tuple] = [
-            ("Subjects", str(self.card.subjects_counted)),
-            ("Total marks", f"{self.card.total_marks:.0f}"),
-            ("Average", f"{self.card.average:.2f}" if self.card.average is not None else "-"),
-        ]
-        if self.card.overall:
-            rows.append(("Overall performance", _ascii(self.card.overall)))
-        if self.card.position:
-            rows.append(
-                ("Position in class", f"{self.card.position} of {self.card.ranked_out_of}")
-            )
-
-        box_h = len(rows) * 7 + 10
-        if self.will_page_break(box_h):
+        if self.will_page_break(43):
             self.add_page()
-
-        start_y = self.get_y()
-        self.set_draw_color(*RULE)
-        self.set_fill_color(250, 251, 253)
-        self.rect(MARGIN, start_y, CONTENT_W, box_h, style="DF")
-
-        self.set_xy(MARGIN + 4, start_y + 3)
-        self.set_font("Helvetica", "B", 9.5)
+        y, left_w, gap, right_w = self.get_y(), 92, 4, 95
+        self._boxed_summary(MARGIN, y, left_w, "TERM SUMMARY", (("Class position", self._position()), ("Subjects assessed", str(self.card.subjects_counted)), ("Total marks", f"{self.card.total_marks:.0f}"), ("Overall performance", self.card.overall or "-")))
+        self._boxed_summary(MARGIN + left_w + gap, y, right_w, "RESULTS NOTE", (("Record", "Official examination results" if self.card.is_published else "Provisional results"), ("Examination", self.card.examination_name or "-"), ("Class", self.card.class_name or "-"), ("", "Marks and grades follow the school's published scale.")))
+        self.set_y(y + 41)
+        self._section_bar("Head teacher's remarks", 7)
+        self.set_fill_color(*PALEST_BLUE)
+        self.set_draw_color(*NAVY)
+        self.rect(MARGIN, self.get_y(), CONTENT_W, 13, style="DF")
+        self.set_xy(MARGIN + 4, self.get_y() + 3)
+        self.set_font("Times", "I", 9)
+        self.set_text_color(*MUTED)
+        self.multi_cell(CONTENT_W - 8, 4, "Official results record. Please contact the school administration for any correction or clarification.")
         self.set_text_color(*INK)
-        self.cell(0, 6, "SUMMARY", new_x="LMARGIN", new_y="NEXT")
+        self.set_y(y + 65)
 
-        for label, value in rows:
-            self.set_x(MARGIN + 4)
-            self.set_font("Helvetica", "", 9)
-            self.set_text_color(*MUTED)
-            self.cell(48, 7, label)
-            self.set_font("Helvetica", "B", 10)
-            self.set_text_color(*INK)
-            self.cell(0, 7, value, new_x="LMARGIN", new_y="NEXT")
+    def _boxed_summary(self, x: float, y: float, width: float, title: str, rows: tuple[tuple[str, str], ...]) -> None:
+        self.set_draw_color(*NAVY)
+        self.set_fill_color(*PALEST_BLUE)
+        self.rect(x, y, width, 37, style="DF")
+        self.set_fill_color(*NAVY)
+        self.rect(x, y, width, 7, style="F")
+        self.set_xy(x + 3, y + 1)
+        self.set_font("Times", "B", 10)
+        self.set_text_color(255, 255, 255)
+        self.cell(width - 6, 4.8, title)
+        self.set_text_color(*INK)
+        for index, (label, value) in enumerate(rows):
+            row_y = y + 10 + index * 6
+            self.set_xy(x + 4, row_y)
+            self.set_font("Times", "", 8.6)
+            self.cell(35, 4.2, _text(label))
+            self.set_font("Times", "B" if index < 3 else "", 8.6)
+            self.cell(width - 43, 4.2, _text(value)[:52])
 
-        self.set_y(start_y + box_h)
-        self.ln(6)
+    def _position(self) -> str:
+        return f"{self.card.position} / {self.card.ranked_out_of}" if self.card.position and self.card.ranked_out_of else "Not available"
 
     def signature_block(self) -> None:
-        """Room for a signature, because a report card gets signed."""
-        if self.will_page_break(22):
+        if self.will_page_break(28):
             self.add_page()
-
-        y = self.get_y() + 8
-        width = 62
-        self.set_draw_color(*RULE)
-        self.set_line_width(0.2)
-
-        for index, label in enumerate(("Class Teacher", "Head Teacher")):
-            x = MARGIN + index * (CONTENT_W - width)
+        y = self.get_y() + 9
+        for index, label in enumerate(("Class Teacher", "Head of Form", "Head Teacher")):
+            x, width = MARGIN + index * 67.5, 55
+            self.set_draw_color(*INK)
             self.line(x, y, x + width, y)
-            self.set_xy(x, y + 1)
-            self.set_font("Helvetica", "", 8)
-            self.set_text_color(*MUTED)
+            self.set_xy(x, y + 2)
+            self.set_font("Times", "B", 8.5)
             self.cell(width, 4, label, align="C")
+            self.set_font("Times", "", 7.8)
+            self.cell(width, 4, "Signature & Date", align="C")
+        self.set_y(y + 13)
+        self.grading_key()
 
-        self.set_y(y + 8)
-        self.set_text_color(*INK)
-
-    # ------------------------------------------------------------- footer
+    def grading_key(self) -> None:
+        bands = self.card.grading_bands[:7]
+        if not bands:
+            return
+        if self.will_page_break(21):
+            self.add_page()
+        self._section_bar("Grading key", 6.5)
+        label_w, band_w = 35, (CONTENT_W - 35) / len(bands)
+        self.set_draw_color(*RULE)
+        self.set_fill_color(*PALE_BLUE)
+        self.set_font("Times", "B", 8)
+        self.cell(label_w, 6, "GRADE", border=1, align="C", fill=True)
+        for band in bands:
+            self.cell(band_w, 6, _text(band["grade"]), border=1, align="C", fill=True)
+        self.ln()
+        self.set_font("Times", "", 8)
+        self.cell(label_w, 6, "MARK RANGE", border=1, align="C")
+        for index, band in enumerate(bands):
+            lower = Decimal(str(band["minimum"]))
+            upper = Decimal("100") if index == 0 else Decimal(str(bands[index - 1]["minimum"])) - Decimal("0.01")
+            self.cell(band_w, 6, f"{lower:g} - {upper:g}", border=1, align="C")
+        self.ln(3)
 
     def footer(self) -> None:
-        self.set_y(-18)
+        self.set_y(-14)
         self.set_draw_color(*RULE)
-        self.set_line_width(0.2)
         self.line(MARGIN, self.get_y(), PAGE_W - MARGIN, self.get_y())
-
         self.ln(1)
-        self.set_font("Helvetica", "", 7.5)
+        self.set_font("Times", "", 7)
         self.set_text_color(*MUTED)
-
-        generated = self.card.generated_at.strftime("%d %B %Y at %H:%M")
-        left = _ascii(self.card.school.school_name)
-        self.cell(CONTENT_W / 2, 5, left, align="L")
-        self.cell(CONTENT_W / 2, 5, f"Generated {generated}", align="R",
-                  new_x="LMARGIN", new_y="NEXT")
-
+        generated = self.card.generated_at.strftime("%d %B %Y %H:%M")
+        self.cell(CONTENT_W / 2, 4, _text(self.card.school.school_name), align="L")
+        self.cell(CONTENT_W / 2, 4, f"Generated {generated}", align="R", new_x="LMARGIN", new_y="NEXT")
         if self.card.scope_note:
-            self.set_font("Helvetica", "I", 7)
-            self.cell(CONTENT_W, 4, _ascii(self.card.scope_note),
-                      align="L", new_x="LMARGIN", new_y="NEXT")
-
-        self.set_font("Helvetica", "", 7.5)
-        self.cell(CONTENT_W, 4, f"Page {self.page_no()} of {{nb}}", align="C")
+            self.set_font("Times", "I", 6.5)
+            self.cell(CONTENT_W, 3.5, _text(self.card.scope_note), align="L", new_x="LMARGIN", new_y="NEXT")
+        self.set_font("Times", "", 7)
+        self.cell(CONTENT_W, 3.5, f"Page {self.page_no()} of {{nb}}", align="C")
+        self.set_text_color(*INK)
 
 
 def render_report_card(card: ReportCard, logo_path: Optional[str] = None) -> bytes:
-    """Render one report card to a print-ready A4 PDF."""
     pdf = ReportCardPDF(card, logo_path)
     pdf.alias_nb_pages()
     pdf.add_page()

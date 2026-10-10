@@ -10,7 +10,7 @@ query, so a report can only ever contain what the caller was entitled to see.
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import List, Optional, Sequence
 
@@ -61,6 +61,11 @@ class ReportCard:
     academic_year_name: Optional[str]
     is_published: bool
 
+    date_of_birth: Optional[date] = None
+    gender: Optional[str] = None
+    form_level: Optional[str] = None
+    academic_level: Optional[str] = None
+
     lines: List[ReportLine] = field(default_factory=list)
 
     subjects_counted: int = 0
@@ -70,6 +75,7 @@ class ReportCard:
 
     position: Optional[int] = None
     ranked_out_of: Optional[int] = None
+    grading_bands: List[dict] = field(default_factory=list)
 
     # What the caller was allowed to see, printed on the document so a partial
     # report can never be mistaken for a complete one.
@@ -120,6 +126,14 @@ class ReportCardService:
             class_name=enrollment.class_name_snapshot if enrollment else (
                 student.school_class.name if student.school_class else None
             ),
+            date_of_birth=student.date_of_birth,
+            gender=student.gender.value if student.gender else None,
+            form_level=(enrollment.form_level.value if enrollment else (
+                student.school_class.form_level.value if student.school_class else None
+            )),
+            academic_level=(enrollment.academic_level.value if enrollment else (
+                student.school_class.level.value if student.school_class else None
+            )),
             examination_name=exam.name,
             term_name=exam.term.name if exam.term else None,
             academic_year_name=(
@@ -128,6 +142,14 @@ class ReportCardService:
             is_published=exam.status == ExaminationStatus.PUBLISHED,
             scope_note=scope_note,
         )
+        level = enrollment.academic_level if enrollment else (
+            student.school_class.level if student.school_class else None
+        )
+        if level:
+            card.grading_bands = [
+                {"minimum": str(b.min_marks), "grade": b.grade, "remark": b.remark}
+                for b in self.grading.bands_for(level)
+            ]
 
         omit_blank = (school.report_unenrolled or "omit") == "omit"
 
@@ -200,6 +222,11 @@ class ReportCardService:
             )},
             is_published=True,
             scope_note=scope_note,
+            date_of_birth=_date_from_context(context.get("date_of_birth")) or student.date_of_birth,
+            gender=context.get("gender") or (student.gender.value if student.gender else None),
+            form_level=context.get("form_level"),
+            academic_level=context.get("level"),
+            grading_bands=context.get("grading_bands", []),
         )
         allowed = set(subject_ids) if subject_ids is not None else None
         results = {r.subject_id: r for r in self.engine.for_student(student.id, exam.id)}
@@ -226,7 +253,6 @@ class ReportCardService:
                     student.id, exam, saved.class_id
                 )
         return card
-
     def _enrolled_subjects(
         self,
         student: Student,
@@ -293,6 +319,16 @@ class ReportCardService:
             )
             card.position = position
             card.ranked_out_of = out_of
+
+
+def _date_from_context(value: object) -> Optional[date]:
+    """Read date values captured in old and new JSON publication contexts."""
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(str(value))
+    except ValueError:
+        return None
 
 
 def load_student(db: Session, student_id: int) -> Optional[Student]:

@@ -27,6 +27,12 @@ export const teacherPortalService = {
   saveMarkSheet: (examinationId, subjectId, entries, reason) =>
     unwrap(apiClient.put(`${base(examinationId, subjectId)}/marksheet`, { entries, reason })),
 
+  reviewMarkSheet: (examinationId, subjectId) =>
+    unwrap(apiClient.get(`${base(examinationId, subjectId)}/review`)),
+
+  submitMarkSheet: (examinationId, subjectId) =>
+    unwrap(apiClient.post(`${base(examinationId, subjectId)}/submit`)),
+
   /** PUT one corrected mark; the change is written to the audit trail. */
   updateResult: (resultId, payload) =>
     unwrap(apiClient.put(`/teacher/results/${resultId}`, payload)),

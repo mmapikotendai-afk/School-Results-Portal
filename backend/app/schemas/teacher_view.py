@@ -98,6 +98,8 @@ class MarkRow(BaseModel):
     student_id: int
     student_number: str
     student_name: str
+    class_name: Optional[str] = None
+    form_level: Optional[str] = None
     marks: Optional[Decimal] = None
     grade: Optional[str] = None
     remarks: Optional[str] = None
@@ -237,6 +239,17 @@ class MarkSheetSave(BaseModel):
 
     entries: List[MarkEntry] = Field(default_factory=list)
     reason: Optional[str] = Field(default=None, max_length=255)
+
+
+class SubmissionReview(BaseModel):
+    examination_id: int
+    subject_id: int
+    expected_students: int
+    marks_entered: int
+    missing_marks: int
+    validation_errors: int = 0
+    can_submit: bool
+    detail: str
 
 
 class ResultReadOnly(BaseModel):
