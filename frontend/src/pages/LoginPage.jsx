@@ -5,7 +5,7 @@ import { Alert, Button, Input } from '@/components/ui'
 import { SIGN_OUT_REASON } from '@/context/authContext'
 import useAuth from '@/hooks/useAuth'
 import useDocumentTitle from '@/hooks/useDocumentTitle'
-import { getErrorCode, getErrorMessage } from '@/services/apiClient'
+import apiClient, { getErrorCode, getErrorMessage } from '@/services/apiClient'
 import { homePathForRole } from '@/utils/roles'
 
 /**
@@ -48,12 +48,27 @@ export function LoginPage() {
   const [fieldErrors, setFieldErrors] = useState({})
   const [error, setError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
+  const [warmingServer, setWarmingServer] = useState(true)
 
   const notice = signOutReason ? REASON_NOTICE[signOutReason] : null
 
   // The notice belongs to the session that just ended, not to this page.
   // Clear it on unmount so it cannot reappear on a later visit.
   useEffect(() => () => clearSignOutReason(), [clearSignOutReason])
+
+  // Wake a Render Free instance before the user submits credentials. This
+  // keeps a cold start from being mistaken for an invalid sign-in attempt.
+  useEffect(() => {
+    let active = true
+
+    apiClient.get('/health')
+      .catch(() => undefined)
+      .finally(() => {
+        if (active) setWarmingServer(false)
+      })
+
+    return () => { active = false }
+  }, [])
 
   function handleChange(event) {
     const { name, value } = event.target
@@ -121,9 +136,15 @@ export function LoginPage() {
         </Alert>
       )}
 
+      {warmingServer && !error && (
+        <Alert tone="info" className="mb-5">
+          Starting the secure server. This can take up to a minute after a period of inactivity.
+        </Alert>
+      )}
+
       <form onSubmit={handleSubmit} noValidate className="space-y-5">
         <Input
-          label="Student number, username or email"
+          label="Student number or username"
           name="identifier"
           type="text"
           icon="user-graduate"
@@ -171,10 +192,11 @@ export function LoginPage() {
           size="lg"
           fullWidth
           loading={submitting}
+          disabled={warmingServer}
           icon="arrow-right"
           iconPosition="right"
         >
-          {submitting ? 'Signing in' : 'Sign in'}
+          {submitting ? 'Signing in' : warmingServer ? 'Starting server' : 'Sign in'}
         </Button>
       </form>
 

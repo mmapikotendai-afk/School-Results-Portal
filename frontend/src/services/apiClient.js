@@ -12,7 +12,10 @@ import { API_BASE_URL, CSRF_HEADER } from '@/utils/constants'
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 20000,
+  // Render's Free service can take close to a minute to wake after it has
+  // been idle. A 20-second client cutoff made a healthy cold start look like
+  // a failed sign-in.
+  timeout: 75000,
   headers: { 'Content-Type': 'application/json' },
   // The session is an httpOnly cookie the browser attaches itself. There is
   // no token here to read or forget, and script on the page cannot reach it.
@@ -96,7 +99,7 @@ export function getErrorMessage(error, fallback = 'Something went wrong. Please 
   if (!error) return fallback
 
   if (error.code === 'ECONNABORTED') {
-    return 'The server took too long to respond. Please try again.'
+    return 'The server is still starting. Please wait a moment and try again.'
   }
 
   if (!error.response) {
